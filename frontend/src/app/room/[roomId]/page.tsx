@@ -102,6 +102,16 @@ export default function RoomPage() {
                         isVideoOn: false,
                     }
                 });
+
+                // Record recent room in backend
+                if (session?.user?.email) {
+                    const apiUrl = process.env.NEXT_PUBLIC_SOCKET_URL?.replace(/\/$/, '') || "http://localhost:4000";
+                    fetch(`${apiUrl}/api/users/recent-rooms`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ email: session.user.email, roomId })
+                    }).catch(err => console.error("Failed to record recent room", err));
+                }
             }
         });
 

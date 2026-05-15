@@ -31,8 +31,10 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/syncroom'
 
 import initSocket from './socket/index.js';
 import roomRoutes from './routes/room.js';
+import userRoutes from './routes/user.js';
 
 app.use('/api/rooms', roomRoutes);
+app.use('/api/users', userRoutes);
 
 app.get('/health', (req, res) => res.send({ status: 'ok' }));
 

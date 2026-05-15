@@ -13,12 +13,44 @@ export default function Dashboard() {
     const { data: session, status } = useSession();
     const router = useRouter();
     const [roomIdToJoin, setRoomIdToJoin] = useState("");
+    const [recentRooms, setRecentRooms] = useState<{roomId: string, joinedAt: string}[]>([]);
+    const [isLoadingRooms, setIsLoadingRooms] = useState(true);
 
     useEffect(() => {
         if (status === "unauthenticated") {
             router.push("/");
         }
     }, [status, router]);
+
+    // Sync user and fetch recent rooms
+    useEffect(() => {
+        if (status === "authenticated" && session?.user?.email) {
+            const apiUrl = process.env.NEXT_PUBLIC_SOCKET_URL?.replace(/\/$/, '') || "http://localhost:4000";
+            
+            // First sync the user
+            fetch(`${apiUrl}/api/users/sync`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: session.user.name,
+                    email: session.user.email,
+                    image: session.user.image,
+                })
+            })
+            .then(() => {
+                // Then fetch recent rooms
+                return fetch(`${apiUrl}/api/users/recent-rooms?email=${encodeURIComponent(session.user.email as string)}`);
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data)) {
+                    setRecentRooms(data);
+                }
+            })
+            .catch(err => console.error("Failed to load recent rooms:", err))
+            .finally(() => setIsLoadingRooms(false));
+        }
+    }, [status, session]);
 
     const handleCreateRoom = () => {
         // Generate a random room ID for simplicity
@@ -103,12 +135,40 @@ export default function Dashboard() {
                     </Card>
                 </div>
 
-                {/* Recent Rooms (Static Placeholder for now) */}
+                {/* Recent Rooms */}
                 <div>
                     <h3 className="text-xl font-bold mb-4 text-zinc-300">Recent Rooms</h3>
-                    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center">
-                        <p className="text-zinc-500">You haven&apos;t joined any rooms recently.</p>
-                    </div>
+                    {isLoadingRooms ? (
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center">
+                            <p className="text-zinc-500 animate-pulse">Loading recent rooms...</p>
+                        </div>
+                    ) : recentRooms.length === 0 ? (
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center">
+                            <p className="text-zinc-500">You haven&apos;t joined any rooms recently.</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                            {recentRooms.map((room) => (
+                                <div 
+                                    key={room.roomId}
+                                    onClick={() => router.push(`/room/${room.roomId}`)}
+                                    className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 hover:border-indigo-500/50 cursor-pointer transition-colors group relative overflow-hidden"
+                                >
+                                    <div className="flex items-start justify-between mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg group-hover:scale-110 transition-transform">
+                                                <Tv2 size={18} />
+                                            </div>
+                                            <h4 className="font-semibold text-lg">{room.roomId}</h4>
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-zinc-500 mt-4">
+                                        Joined {new Date(room.joinedAt).toLocaleDateString()} at {new Date(room.joinedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </main>
         </div>
