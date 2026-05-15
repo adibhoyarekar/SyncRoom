@@ -52,7 +52,7 @@ export default function ParticipantsPanel({ socket, roomId }: ParticipantsPanelP
                 </span>
             </div>
 
-            {!isOwner && (
+            {localUser && !isOwner && (
                 <div className="p-4 border-b border-zinc-800">
                     <Button 
                         variant="secondary" 

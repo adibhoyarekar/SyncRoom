@@ -14,6 +14,7 @@ import VideoPlayer from "@/components/VideoPlayer";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
+import RoomTour from "@/components/RoomTour";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000";
 
@@ -244,24 +245,24 @@ export default function RoomPage() {
     };
 
     return (
-        <div className="h-screen flex flex-col bg-zinc-950 text-white overflow-hidden">
+        <div className="h-screen flex flex-col mesh-bg text-white overflow-hidden">
             {/* Top Navbar */}
-            <header className="h-16 border-b border-zinc-800 bg-zinc-900/50 flex items-center justify-between px-4 shrink-0">
+            <header className="h-16 border-b border-zinc-800/50 bg-zinc-950/40 backdrop-blur-xl flex items-center justify-between px-4 shrink-0 shadow-sm z-10 relative">
                 <div className="flex items-center gap-2">
-                    <Tv2 className="text-indigo-500" size={24} />
-                    <h1 className="text-lg font-bold">SyncRoom</h1>
-                    <div className="ml-4 px-3 py-1 bg-zinc-800 rounded-full text-xs font-mono text-zinc-300">
+                    <Tv2 className="text-indigo-400 drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" size={24} />
+                    <h1 className="text-lg font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">SyncRoom</h1>
+                    <div className="ml-4 px-3 py-1 bg-zinc-900/60 border border-zinc-800 rounded-full text-xs font-mono text-zinc-300 backdrop-blur-md shadow-inner">
                         Room: {roomId}
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" onClick={() => setShowSidebar(showSidebar === "participants" ? null : "participants")}>
-                        <UsersIcon size={20} className={showSidebar === "participants" ? "text-indigo-400" : "text-zinc-400"} />
+                <div className="flex items-center gap-2 tour-topbar-actions">
+                    <Button variant="ghost" size="icon" className="hover:bg-zinc-800/50 transition-colors" onClick={() => setShowSidebar(showSidebar === "participants" ? null : "participants")}>
+                        <UsersIcon size={20} className={showSidebar === "participants" ? "text-indigo-400 drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : "text-zinc-400"} />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => setShowSidebar(showSidebar === "chat" ? null : "chat")}>
-                        <MessageSquare size={20} className={showSidebar === "chat" ? "text-indigo-400" : "text-zinc-400"} />
+                    <Button variant="ghost" size="icon" className="hover:bg-zinc-800/50 transition-colors" onClick={() => setShowSidebar(showSidebar === "chat" ? null : "chat")}>
+                        <MessageSquare size={20} className={showSidebar === "chat" ? "text-indigo-400 drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : "text-zinc-400"} />
                     </Button>
-                    <Button variant="destructive" size="sm" onClick={() => router.push("/dashboard")} className="ml-2">
+                    <Button variant="destructive" size="sm" onClick={() => router.push("/dashboard")} className="ml-2 bg-red-500/80 hover:bg-red-500 text-white backdrop-blur-md shadow-lg border border-red-500/50">
                         <LogOut size={16} className="mr-2" />
                         Leave
                     </Button>
@@ -269,23 +270,26 @@ export default function RoomPage() {
             </header>
 
             {/* Main Workspace */}
-            <div className="flex flex-1 overflow-hidden relative">
+            <div className="flex flex-1 overflow-hidden relative z-0">
+                {/* Onboarding Tour */}
+                <RoomTour />
+
                 {/* Center Canvas */}
-                <main className="flex-1 flex flex-col bg-black p-4 lg:p-6 overflow-y-auto">
+                <main className="flex-1 flex flex-col p-4 lg:p-6 overflow-y-auto z-10">
                     {/* Camera Grid above video */}
                     <CameraGrid currentUserId={socketId} />
 
-                    <div className="flex-1 flex flex-col bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden shadow-2xl relative mt-2">
+                    <div className="flex-1 flex flex-col bg-zinc-950/60 backdrop-blur-sm rounded-2xl border border-zinc-800/60 overflow-hidden shadow-2xl relative mt-2 tour-video-player ring-1 ring-white/5 transition-all">
                         <VideoPlayer socket={socket} roomId={roomId as string} />
                     </div>
 
                     {/* Bottom Controls */}
-                    <div className="h-20 mt-4 bg-zinc-900 border border-zinc-800 rounded-2xl flex items-center justify-center gap-4 px-6 shrink-0 shadow-lg">
+                    <div className="h-20 mt-4 bg-zinc-950/60 backdrop-blur-xl border border-zinc-800/60 rounded-2xl flex items-center justify-center gap-4 px-6 shrink-0 shadow-[0_8px_32px_rgba(0,0,0,0.4)] tour-controls ring-1 ring-white/5">
                         <Button
                             variant={isMuted ? "destructive" : "secondary"}
                             size="icon"
                             onClick={toggleMic}
-                            className={`h-12 w-12 rounded-full ${!isMuted ? "bg-zinc-800 hover:bg-zinc-700" : ""}`}
+                            className={`h-12 w-12 rounded-full shadow-lg transition-all ${!isMuted ? "bg-zinc-800/80 hover:bg-zinc-700 hover:scale-105" : "bg-red-500/90 hover:bg-red-500 hover:scale-105"}`}
                         >
                             {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
                         </Button>
@@ -293,7 +297,7 @@ export default function RoomPage() {
                             variant={isVideoOn ? "secondary" : "destructive"}
                             size="icon"
                             onClick={toggleCamera}
-                            className={`h-12 w-12 rounded-full ${isVideoOn ? "bg-zinc-800 hover:bg-zinc-700" : ""}`}
+                            className={`h-12 w-12 rounded-full shadow-lg transition-all ${isVideoOn ? "bg-zinc-800/80 hover:bg-zinc-700 hover:scale-105" : "bg-red-500/90 hover:bg-red-500 hover:scale-105"}`}
                         >
                             {isVideoOn ? <Video size={20} /> : <VideoOff size={20} />}
                         </Button>
@@ -301,12 +305,12 @@ export default function RoomPage() {
                             variant={isScreenSharing ? "secondary" : "outline"}
                             size="icon"
                             onClick={handleScreenShare}
-                            className="h-12 w-12 rounded-full border-zinc-700 hover:bg-zinc-800"
+                            className={`h-12 w-12 rounded-full shadow-lg transition-all border-zinc-700/50 hover:scale-105 ${isScreenSharing ? 'bg-indigo-500/20 border-indigo-500/50' : 'bg-zinc-900/50 hover:bg-zinc-800/80'}`}
                         >
-                            <MonitorUp size={20} className={isScreenSharing ? "text-indigo-400" : ""} />
+                            <MonitorUp size={20} className={isScreenSharing ? "text-indigo-400 drop-shadow-[0_0_8px_rgba(99,102,241,0.8)]" : "text-zinc-300"} />
                         </Button>
-                        <div className="w-px h-8 bg-zinc-800 mx-2" />
-                        <Button variant="outline" size="icon" className="h-12 w-12 rounded-full border-zinc-700 hover:bg-zinc-800">
+                        <div className="w-px h-8 bg-zinc-800/80 mx-2" />
+                        <Button variant="outline" size="icon" className="h-12 w-12 rounded-full border-zinc-700/50 bg-zinc-900/50 hover:bg-zinc-800/80 text-zinc-300 shadow-lg transition-all hover:scale-105">
                             <Settings size={20} />
                         </Button>
                     </div>
@@ -314,7 +318,7 @@ export default function RoomPage() {
 
                 {/* Dynamic Sidebar */}
                 {showSidebar && (
-                    <aside className="w-[350px] border-l border-zinc-800 bg-zinc-900 flex flex-col shrink-0">
+                    <aside className="w-[350px] border-l border-zinc-800/50 bg-zinc-950/40 backdrop-blur-2xl flex flex-col shrink-0 shadow-[-10px_0_30px_rgba(0,0,0,0.5)] z-20 tour-sidebar relative">
                         {showSidebar === "chat" ? (
                             <ChatPanel socket={socket} roomId={roomId as string} />
                         ) : (

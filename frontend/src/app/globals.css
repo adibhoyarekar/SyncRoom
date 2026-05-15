@@ -65,3 +65,71 @@
     --chart-5: 340 75% 55%;
   }
 }
+
+/* Animated Mesh Gradient Background */
+.mesh-bg {
+  background-color: #09090b;
+  background-image: 
+    radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+    radial-gradient(at 50% 0%, hsla(225,39%,30%,0.2) 0, transparent 50%), 
+    radial-gradient(at 100% 0%, hsla(339,49%,30%,0.1) 0, transparent 50%);
+  position: relative;
+  overflow: hidden;
+}
+
+.mesh-bg::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: 
+    radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.05) 0%, transparent 40%),
+    radial-gradient(circle at 80% 20%, rgba(168, 85, 247, 0.05) 0%, transparent 30%);
+  animation: rotate 30s linear infinite;
+  z-index: 0;
+  pointer-events: none;
+}
+
+@keyframes rotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Base styles for the tour */
+.driver-popover {
+  background-color: #18181b !important;
+  color: #fff !important;
+  border: 1px solid #27272a !important;
+  border-radius: 12px !important;
+  font-family: inherit !important;
+}
+
+.driver-popover-title {
+  font-weight: 600 !important;
+  font-size: 1.1rem !important;
+  color: #a5b4fc !important;
+}
+
+.driver-popover-description {
+  color: #a1a1aa !important;
+}
+
+.driver-popover-footer button {
+  background-color: #27272a !important;
+  color: #fff !important;
+  text-shadow: none !important;
+  border: 1px solid #3f3f46 !important;
+  border-radius: 6px !important;
+  padding: 5px 12px !important;
+}
+
+.driver-popover-footer button:hover {
+  background-color: #3f3f46 !important;
+}
+
+.driver-popover-progress-text {
+  color: #71717a !important;
+}
+

@@ -287,19 +287,19 @@ export default function ChatPanel({ socket, roomId }: ChatPanelProps) {
                     messages.map((m) => {
                         const isMe = session?.user?.name === m.userName;
                         return (
-                            <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                            <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-in slide-in-from-bottom-2 fade-in duration-300`}>
                                 <div className="flex items-end gap-2 max-w-[85%]">
                                     {!isMe && (
                                         // eslint-disable-next-line @next/next/no-img-element
                                         <img
                                             src={m.userImage || `https://api.dicebear.com/7.x/initials/svg?seed=${m.userName}`}
                                             alt=""
-                                            className="w-6 h-6 rounded-full shrink-0"
+                                            className="w-6 h-6 rounded-full shrink-0 shadow-sm"
                                         />
                                     )}
-                                    <div className={`rounded-2xl px-4 py-2 text-sm ${isMe
-                                        ? 'bg-indigo-600 text-white rounded-br-sm'
-                                        : 'bg-zinc-800 text-zinc-200 rounded-bl-sm border border-zinc-700'
+                                    <div className={`rounded-2xl px-4 py-2 text-sm shadow-md backdrop-blur-md ${isMe
+                                        ? 'bg-indigo-600/90 text-white rounded-br-sm border border-indigo-500/50'
+                                        : 'bg-zinc-800/80 text-zinc-200 rounded-bl-sm border border-zinc-700/50'
                                         }`}>
                                         {!isMe && <div className="text-xs text-indigo-400 font-semibold mb-1">{m.userName}</div>}
                                         <div>{m.text}</div>

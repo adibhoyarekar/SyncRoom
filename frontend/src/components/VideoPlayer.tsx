@@ -96,23 +96,14 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
     };
 
     const handlePlay = () => {
-        if (!isOwner) {
-            // Revert state if not owner
-            if (isVideoType === "youtube" && ytPlayerRef.current) ytPlayerRef.current.pauseVideo();
-            else if (nativeVideoRef.current) nativeVideoRef.current.pause();
-            return;
-        }
+        if (!isOwner) return;
         if (isRemoteActionRef.current) return;
         const time = isVideoType === "youtube" ? ytPlayerRef.current?.getCurrentTime() : nativeVideoRef.current?.currentTime;
         socket.emit("video-play", { roomId, time });
     };
 
     const handlePause = () => {
-        if (!isOwner) {
-            if (isVideoType === "youtube" && ytPlayerRef.current) ytPlayerRef.current.playVideo();
-            else if (nativeVideoRef.current) nativeVideoRef.current.play();
-            return;
-        }
+        if (!isOwner) return;
         if (isRemoteActionRef.current) return;
         const time = isVideoType === "youtube" ? ytPlayerRef.current?.getCurrentTime() : nativeVideoRef.current?.currentTime;
         socket.emit("video-pause", { roomId, time });
@@ -194,7 +185,7 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
             )}
 
             {/* Player Wrapper */}
-            <div className="flex-1 w-full bg-black relative flex items-center justify-center">
+            <div className={`flex-1 w-full bg-black relative flex items-center justify-center tour-video-player ${!isOwner ? 'pointer-events-none' : ''}`}>
                 {isVideoType === "youtube" ? (
                     <YouTube
                         videoId={url}
@@ -209,8 +200,8 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
                     <video
                         ref={nativeVideoRef}
                         src={localVideoUrl}
-                        controls
-                        className="w-full h-full object-contain"
+                        controls={isOwner}
+                        className="w-full h-full object-contain pointer-events-auto"
                         onPlay={handlePlay}
                         onPause={handlePause}
                         onSeeked={(e) => handleSeek((e.target as HTMLVideoElement).currentTime)}
