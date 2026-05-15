@@ -94,15 +94,8 @@ export default function CameraGrid({ currentUserId }: { currentUserId: string })
 
     if (users.length === 0) return null;
 
-    // Determine grid layout class based on number of users
-    const gridClass = users.length <= 2
-        ? "grid-cols-1 sm:grid-cols-2"
-        : users.length <= 4
-            ? "grid-cols-2"
-            : "grid-cols-2 sm:grid-cols-3";
-
     return (
-        <div className={`grid ${gridClass} gap-3 mb-3`}>
+        <div className="flex gap-2 pb-2 mb-1 overflow-x-auto scrollbar-thin" style={{ scrollbarWidth: 'thin' }}>
             {users.map((user) => {
                 const isLocal = user.id === currentUserId;
                 const showVideo = user.isVideoOn && user.stream;
@@ -110,7 +103,7 @@ export default function CameraGrid({ currentUserId }: { currentUserId: string })
                 return (
                     <div
                         key={user.id}
-                        className="relative aspect-video glass rounded-xl overflow-hidden flex items-center justify-center group"
+                        className="relative w-20 h-20 shrink-0 rounded-xl overflow-hidden glass group"
                     >
                         {/* Always-mounted video element — shown/hidden via opacity */}
                         {user.stream && (
@@ -118,18 +111,17 @@ export default function CameraGrid({ currentUserId }: { currentUserId: string })
                         )}
 
                         {/* Avatar fallback — shown when video is off */}
-                        <div className={`flex flex-col items-center justify-center transition-opacity duration-300 ${showVideo ? 'opacity-0' : 'opacity-100'}`}>
-                            <div className="w-16 h-16 rounded-full bg-zinc-800 border-2 border-zinc-700/50 flex items-center justify-center overflow-hidden shadow-inner">
+                        <div className={`absolute inset-0 flex flex-col items-center justify-center transition-opacity duration-300 ${showVideo ? 'opacity-0' : 'opacity-100'}`}>
+                            <div className="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700/50 flex items-center justify-center overflow-hidden">
                                 <Image
                                     src={user.image || `https://api.dicebear.com/7.x/initials/svg?seed=${user.name}`}
                                     alt={user.name}
-                                    width={64}
-                                    height={64}
+                                    width={40}
+                                    height={40}
                                     unoptimized
                                     className="w-full h-full object-cover"
                                 />
                             </div>
-                            <span className="text-xs text-zinc-500 mt-2 font-medium">{user.name}</span>
                         </div>
 
                         {/* Persistent audio for remote users */}
@@ -137,25 +129,25 @@ export default function CameraGrid({ currentUserId }: { currentUserId: string })
                             <AudioTile stream={user.stream} />
                         )}
 
-                        {/* Bottom overlay bar */}
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-3 py-2.5 flex items-end justify-between">
-                            <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-medium text-white/90 truncate max-w-[120px]">
-                                    {user.name} {isLocal && <span className="text-indigo-400">(You)</span>}
-                                </span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                {user.isMuted && (
-                                    <div className="bg-red-500/80 p-1 rounded-md">
-                                        <MicOff size={12} className="text-white" />
-                                    </div>
-                                )}
-                                {!user.isVideoOn && (
-                                    <div className="bg-zinc-700/80 p-1 rounded-md">
-                                        <VideoOff size={12} className="text-zinc-300" />
-                                    </div>
-                                )}
-                            </div>
+                        {/* Status indicators */}
+                        <div className="absolute top-1 right-1 flex gap-0.5">
+                            {user.isMuted && (
+                                <div className="bg-red-500/80 p-0.5 rounded">
+                                    <MicOff size={8} className="text-white" />
+                                </div>
+                            )}
+                            {!user.isVideoOn && (
+                                <div className="bg-zinc-700/80 p-0.5 rounded">
+                                    <VideoOff size={8} className="text-zinc-300" />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Name label */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-1.5 py-1">
+                            <span className="text-[10px] font-medium text-white/90 truncate block leading-tight">
+                                {isLocal ? "You" : user.name?.split(" ")[0]}
+                            </span>
                         </div>
                     </div>
                 );
