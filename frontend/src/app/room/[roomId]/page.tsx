@@ -81,7 +81,10 @@ export default function RoomPage() {
         });
         setSocket(newSocket);
 
+        let disconnectTimer: NodeJS.Timeout | null = null;
+
         newSocket.on("connect", () => {
+            if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
             setIsDisconnected(false);
             if (newSocket.id) {
                 setSocketId(newSocket.id);
@@ -139,12 +142,17 @@ export default function RoomPage() {
             setRoomName(name);
         });
 
-        // Auto-reconnect events
+        // Auto-reconnect events — only show overlay if disconnected for 3+ seconds
+        // (tab switches cause brief disconnects that should be invisible)
+
         newSocket.on("disconnect", () => {
-            setIsDisconnected(true);
+            disconnectTimer = setTimeout(() => {
+                setIsDisconnected(true);
+            }, 3000);
         });
 
         newSocket.on("reconnect", () => {
+            if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
             setIsDisconnected(false);
             // Re-join room after reconnect
             if (newSocket.id) {
