@@ -179,9 +179,13 @@ export default function ChatPanel({ socket, roomId }: ChatPanelProps) {
     const [text, setText] = useState("");
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [activeEmojiCategory, setActiveEmojiCategory] = useState(0);
+    const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+    
     const scrollRef = useRef<HTMLDivElement>(null);
     const emojiPickerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const typingTimeoutsRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
+    const lastTypingEmitRef = useRef(0);
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -203,6 +207,37 @@ export default function ChatPanel({ socket, roomId }: ChatPanelProps) {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [showEmojiPicker]);
 
+    // Handle typing events from socket
+    useEffect(() => {
+        const handleTyping = ({ userName }: { userName: string }) => {
+            if (!userName || userName === session?.user?.name) return;
+            
+            setTypingUsers(prev => {
+                const next = new Set(prev);
+                next.add(userName);
+                return next;
+            });
+            
+            if (typingTimeoutsRef.current[userName]) {
+                clearTimeout(typingTimeoutsRef.current[userName]);
+            }
+            
+            typingTimeoutsRef.current[userName] = setTimeout(() => {
+                setTypingUsers(prev => {
+                    const next = new Set(prev);
+                    next.delete(userName);
+                    return next;
+                });
+                delete typingTimeoutsRef.current[userName];
+            }, 2000);
+        };
+
+        socket.on("typing", handleTyping);
+        return () => {
+            socket.off("typing", handleTyping);
+        };
+    }, [socket, session]);
+
     const handleSend = (e: React.FormEvent) => {
         e.preventDefault();
         if (!text.trim() || !session?.user) return;
@@ -218,6 +253,18 @@ export default function ChatPanel({ socket, roomId }: ChatPanelProps) {
 
         socket.emit("chat-message", { roomId, message: newMessage });
         setText("");
+    };
+
+    const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setText(e.target.value);
+        
+        const now = Date.now();
+        if (now - lastTypingEmitRef.current > 1000) {
+            if (session?.user?.name) {
+                socket.emit("typing", { roomId, userName: session.user.name });
+                lastTypingEmitRef.current = now;
+            }
+        }
     };
 
     const insertEmoji = (emoji: string) => {
@@ -323,6 +370,13 @@ export default function ChatPanel({ socket, roomId }: ChatPanelProps) {
                     </div>
                 )}
 
+                {/* Typing Indicator */}
+                {typingUsers.size > 0 && (
+                    <div className="absolute -top-6 left-4 text-xs text-zinc-400 italic">
+                        {Array.from(typingUsers).join(", ")} {typingUsers.size === 1 ? "is typing..." : "are typing..."}
+                    </div>
+                )}
+
                 <form onSubmit={handleSend} className="relative flex items-center">
                     <Button
                         type="button"
@@ -338,7 +392,7 @@ export default function ChatPanel({ socket, roomId }: ChatPanelProps) {
                     <Input
                         ref={inputRef}
                         value={text}
-                        onChange={(e) => setText(e.target.value)}
+                        onChange={handleTextChange}
                         placeholder="Type a message..."
                         className="w-full bg-zinc-950 border-zinc-800 pl-10 pr-10 focus-visible:ring-indigo-500 rounded-full h-10"
                     />
