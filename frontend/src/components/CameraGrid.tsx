@@ -21,26 +21,34 @@ function VideoTile({ stream, isLocal, isVideoOn }: { stream: MediaStream | undef
             if (video.srcObject !== stream) {
                 video.srcObject = stream;
             }
-            if (video.paused) {
-                video.play().catch(() => {/* autoplay policy — ignore */});
-            }
+            // Always call play — handles browser suspending the element
+            video.play().catch(() => {/* autoplay policy — ignore */});
         };
 
         attach();
 
+        // On tab return: force re-attach to recover from frozen frames
         const onVisible = () => {
-            if (document.visibilityState === "visible") attach();
+            if (document.visibilityState === "visible") {
+                // Short delay lets recovered tracks settle before re-attaching
+                setTimeout(() => {
+                    // Force the browser to re-read the stream
+                    video.srcObject = null;
+                    video.srcObject = stream;
+                    video.play().catch(() => {});
+                }, 350);
+            }
         };
 
         document.addEventListener("visibilitychange", onVisible);
-        window.addEventListener("focus", attach);
+        window.addEventListener("focus", onVisible);
 
         const onTrackAdded = () => attach();
         stream.addEventListener("addtrack", onTrackAdded);
 
         return () => {
             document.removeEventListener("visibilitychange", onVisible);
-            window.removeEventListener("focus", attach);
+            window.removeEventListener("focus", onVisible);
             stream.removeEventListener("addtrack", onTrackAdded);
         };
     }, [stream]);

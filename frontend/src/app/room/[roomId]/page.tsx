@@ -48,39 +48,18 @@ export default function RoomPage() {
 
     const { setUsers, addUser, removeUser, addMessage, updateUser } = useRoomStore();
 
-    // Start WebRTC connection
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { localStream, toggleScreenShare, ensureVideoTrack } = useWebRTC(roomId as string, socketId);
-
-    // Refs to hold the latest toggle state so visibility handler reads them
-    // without creating new listener registrations on every toggle.
+    // Refs to hold the latest toggle state so the WebRTC hook's recovery
+    // handler can read them without creating new listener registrations.
     const isMutedRef = useRef(isMuted);
     const isVideoOnRef = useRef(isVideoOn);
     useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
     useEffect(() => { isVideoOnRef.current = isVideoOn; }, [isVideoOn]);
 
-    // ── Visibility-change: re-sync track enabled state ─────────────────
-    useEffect(() => {
-        const syncTracks = () => {
-            if (document.visibilityState !== "visible") return;
-            if (!localStream) return;
-            setTimeout(() => {
-                localStream.getAudioTracks().forEach(t => {
-                    t.enabled = !isMutedRef.current;
-                });
-                localStream.getVideoTracks().forEach(t => {
-                    t.enabled = isVideoOnRef.current;
-                });
-            }, 300);
-        };
-
-        document.addEventListener("visibilitychange", syncTracks);
-        window.addEventListener("focus", syncTracks);
-        return () => {
-            document.removeEventListener("visibilitychange", syncTracks);
-            window.removeEventListener("focus", syncTracks);
-        };
-    }, [localStream]);
+    // Start WebRTC connection — pass state refs so recovery restores correct state
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { localStream, toggleScreenShare, ensureVideoTrack } = useWebRTC(
+        roomId as string, socketId, isMutedRef, isVideoOnRef
+    );
 
     useEffect(() => {
         if (status === "unauthenticated") {

@@ -4,14 +4,28 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Peer, { MediaConnection } from "peerjs";
 import { useRoomStore } from "@/store/useRoomStore";
 
-export function useWebRTC(roomId: string, userId: string) {
+/**
+ * Central WebRTC hook.
+ *
+ * Accepts optional refs for the caller's desired media state so that
+ * visibility-change recovery can restore tracks to the correct
+ * enabled/disabled state without fighting a second handler.
+ */
+export function useWebRTC(
+    roomId: string,
+    userId: string,
+    isMutedRef?: React.MutableRefObject<boolean>,
+    isVideoOnRef?: React.MutableRefObject<boolean>,
+) {
     const [peer, setPeer] = useState<Peer | null>(null);
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [remoteStreams, setRemoteStreams] = useState<{ [id: string]: MediaStream }>({});
 
     const { users, updateUser } = useRoomStore();
     const callsRef = useRef<{ [id: string]: MediaConnection }>({});
     const localStreamRef = useRef<MediaStream | null>(null);
+    const isRecoveringRef = useRef(false);
 
     // Keep ref in sync with state
     useEffect(() => {
@@ -25,96 +39,118 @@ export function useWebRTC(roomId: string, userId: string) {
         }
     }, [localStream, userId, updateUser]);
 
-    /**
-     * Ensures the video track on the local stream is alive.
-     * If the browser killed/ended the track (e.g. tab switch), this re-acquires
-     * a fresh video track and hot-swaps it into every active peer connection.
-     *
-     * Returns the live track, or null on failure.
-     * Does NOT call setLocalStream — the caller decides whether React needs a bump.
-     */
+    // ── Hot-swap helpers ────────────────────────────────────────────────
+
+    /** Replace a track in every active peer connection */
+    const hotSwapTrack = useCallback((freshTrack: MediaStreamTrack) => {
+        const kind = freshTrack.kind; // "audio" | "video"
+        Object.values(callsRef.current).forEach((call) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const sender = (call as any).peerConnection
+                ?.getSenders()
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                ?.find((s: any) => s.track?.kind === kind);
+            if (sender) sender.replaceTrack(freshTrack);
+        });
+    }, []);
+
+    // ── ensureVideoTrack ────────────────────────────────────────────────
     const ensureVideoTrack = useCallback(async (): Promise<MediaStreamTrack | null> => {
         const stream = localStreamRef.current;
         if (!stream) return null;
 
         const existing = stream.getVideoTracks()[0];
+        if (existing && existing.readyState === "live") return existing;
 
-        // Track is still live — nothing to do
-        if (existing && existing.readyState === "live") {
-            return existing;
-        }
-
-        // Track is ended or missing — re-acquire from camera
         try {
             const freshStream = await navigator.mediaDevices.getUserMedia({ video: true });
             const freshTrack = freshStream.getVideoTracks()[0];
 
-            // Remove the dead track
             if (existing) {
                 stream.removeTrack(existing);
                 try { existing.stop(); } catch { /* already stopped */ }
             }
-
-            // Inject new track into the existing MediaStream object so every
-            // <video> element that references it picks it up automatically.
             stream.addTrack(freshTrack);
-
-            // Hot-swap in every active PeerJS connection
-            Object.values(callsRef.current).forEach((call) => {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const sender = (call as any).peerConnection
-                    ?.getSenders()
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    ?.find((s: any) => s.track?.kind === "video");
-                if (sender) sender.replaceTrack(freshTrack);
-            });
-
+            hotSwapTrack(freshTrack);
             return freshTrack;
         } catch (err) {
             console.error("Failed to re-acquire video track:", err);
             return null;
         }
-    }, []);
+    }, [hotSwapTrack]);
 
-    // ── Visibility-change recovery ──────────────────────────────────────
-    // When the user switches back to this tab, check if the browser killed
-    // the camera track and transparently re-acquire it.
-    useEffect(() => {
-        const handleVisibility = async () => {
-            if (document.visibilityState !== "visible") return;
+    // ── ensureAudioTrack ────────────────────────────────────────────────
+    const ensureAudioTrack = useCallback(async (): Promise<MediaStreamTrack | null> => {
+        const stream = localStreamRef.current;
+        if (!stream) return null;
+
+        const existing = stream.getAudioTracks()[0];
+        if (existing && existing.readyState === "live") return existing;
+
+        try {
+            const freshStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const freshTrack = freshStream.getAudioTracks()[0];
+
+            if (existing) {
+                stream.removeTrack(existing);
+                try { existing.stop(); } catch { /* */ }
+            }
+            stream.addTrack(freshTrack);
+            hotSwapTrack(freshTrack);
+            return freshTrack;
+        } catch (err) {
+            console.error("Failed to re-acquire audio track:", err);
+            return null;
+        }
+    }, [hotSwapTrack]);
+
+    // ── Unified media recovery ──────────────────────────────────────────
+    // Single recovery function used by both visibility-change and
+    // track-ended handlers.  Serialized via isRecoveringRef.
+    const recoverMedia = useCallback(async () => {
+        if (isRecoveringRef.current) return;
+        isRecoveringRef.current = true;
+
+        try {
             const stream = localStreamRef.current;
             if (!stream) return;
 
+            // ── Video ──
+            const wantVideo = isVideoOnRef?.current ?? false;
             const vTrack = stream.getVideoTracks()[0];
-            // Only recover if the track was enabled (user had camera ON)
-            if (vTrack && vTrack.readyState === "ended") {
-                const wasEnabled = vTrack.enabled;
-                const fresh = await ensureVideoTrack();
-                if (fresh) fresh.enabled = wasEnabled;
+
+            if (wantVideo) {
+                if (!vTrack || vTrack.readyState === "ended") {
+                    const fresh = await ensureVideoTrack();
+                    if (fresh) fresh.enabled = true;
+                } else {
+                    vTrack.enabled = true;
+                }
+            } else {
+                stream.getVideoTracks().forEach(t => { t.enabled = false; });
             }
 
+            // ── Audio ──
+            const wantAudio = !(isMutedRef?.current ?? false);
             const aTrack = stream.getAudioTracks()[0];
-            if (aTrack && aTrack.readyState === "ended") {
-                // Re-acquire audio track too
-                try {
-                    const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    const freshAudio = audioStream.getAudioTracks()[0];
-                    const wasEnabled = aTrack.enabled;
-                    stream.removeTrack(aTrack);
-                    try { aTrack.stop(); } catch { /* */ }
-                    stream.addTrack(freshAudio);
-                    freshAudio.enabled = wasEnabled;
 
-                    Object.values(callsRef.current).forEach((call) => {
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        const sender = (call as any).peerConnection
-                            ?.getSenders()
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            ?.find((s: any) => s.track?.kind === "audio");
-                        if (sender) sender.replaceTrack(freshAudio);
-                    });
-                } catch { /* best effort */ }
+            if (!aTrack || aTrack.readyState === "ended") {
+                const fresh = await ensureAudioTrack();
+                if (fresh) fresh.enabled = wantAudio;
+            } else {
+                aTrack.enabled = wantAudio;
             }
+        } finally {
+            isRecoveringRef.current = false;
+        }
+    }, [ensureVideoTrack, ensureAudioTrack, isMutedRef, isVideoOnRef]);
+
+    // ── Visibility-change recovery ──────────────────────────────────────
+    useEffect(() => {
+        const handleVisibility = () => {
+            if (document.visibilityState !== "visible") return;
+            // Small delay lets the browser resume the page fully first
+            setTimeout(recoverMedia, 250);
         };
 
         document.addEventListener("visibilitychange", handleVisibility);
@@ -123,7 +159,44 @@ export function useWebRTC(roomId: string, userId: string) {
             document.removeEventListener("visibilitychange", handleVisibility);
             window.removeEventListener("focus", handleVisibility);
         };
-    }, [ensureVideoTrack]);
+    }, [recoverMedia]);
+
+    // ── Track-ended listeners ───────────────────────────────────────────
+    // Detect when the browser kills a track (e.g. hardware error,
+    // permission revocation) and recover immediately.
+    useEffect(() => {
+        const stream = localStreamRef.current;
+        if (!stream) return;
+
+        const onVideoEnded = () => {
+            console.log("[useWebRTC] Video track ended — triggering recovery");
+            setTimeout(recoverMedia, 100);
+        };
+        const onAudioEnded = () => {
+            console.log("[useWebRTC] Audio track ended — triggering recovery");
+            setTimeout(recoverMedia, 100);
+        };
+
+        const attachListeners = () => {
+            stream.getVideoTracks().forEach(t => t.addEventListener("ended", onVideoEnded));
+            stream.getAudioTracks().forEach(t => t.addEventListener("ended", onAudioEnded));
+        };
+
+        attachListeners();
+
+        // Also listen for new tracks being added so we can attach listeners
+        const onAddTrack = (e: MediaStreamTrackEvent) => {
+            if (e.track.kind === "video") e.track.addEventListener("ended", onVideoEnded);
+            if (e.track.kind === "audio") e.track.addEventListener("ended", onAudioEnded);
+        };
+        stream.addEventListener("addtrack", onAddTrack);
+
+        return () => {
+            stream.getVideoTracks().forEach(t => t.removeEventListener("ended", onVideoEnded));
+            stream.getAudioTracks().forEach(t => t.removeEventListener("ended", onAudioEnded));
+            stream.removeEventListener("addtrack", onAddTrack);
+        };
+    }, [localStream, recoverMedia]);
 
     // ── PeerJS + getUserMedia initialisation ────────────────────────────
     useEffect(() => {
@@ -162,7 +235,6 @@ export function useWebRTC(roomId: string, userId: string) {
             })
             .catch((err) => {
                 console.warn("getUserMedia (video+audio) failed, trying audio-only:", err);
-                // Fallback: audio-only so the user can still participate
                 navigator.mediaDevices.getUserMedia({ audio: true })
                     .then((audioStream) => {
                         setLocalStream(audioStream);
@@ -213,11 +285,7 @@ export function useWebRTC(roomId: string, userId: string) {
                 const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
                 const screenVideoTrack = displayStream.getVideoTracks()[0];
 
-                Object.values(callsRef.current).forEach((call) => {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const sender = (call as any).peerConnection?.getSenders().find((s: any) => s.track?.kind === 'video');
-                    if (sender) sender.replaceTrack(screenVideoTrack);
-                });
+                hotSwapTrack(screenVideoTrack);
 
                 const localVideoTrack = stream.getVideoTracks()[0];
                 if (localVideoTrack) {
@@ -241,11 +309,7 @@ export function useWebRTC(roomId: string, userId: string) {
                 const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
                 const cameraVideoTrack = cameraStream.getVideoTracks()[0];
 
-                Object.values(callsRef.current).forEach((call) => {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const sender = (call as any).peerConnection?.getSenders().find((s: any) => s.track?.kind === 'video');
-                    if (sender) sender.replaceTrack(cameraVideoTrack);
-                });
+                hotSwapTrack(cameraVideoTrack);
 
                 const oldTrack = stream.getVideoTracks()[0];
                 if (oldTrack) {
