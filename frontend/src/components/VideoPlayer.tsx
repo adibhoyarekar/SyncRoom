@@ -33,33 +33,35 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
         socket.on("video-play", ({ time }: { time?: number }) => {
             isRemoteActionRef.current = true;
             if (isVideoType === "youtube" && ytPlayerRef.current) {
-                if (typeof time === "number" && Math.abs(ytPlayerRef.current.getCurrentTime() - time) > 2) {
+                // Always sync to the exact time on play
+                if (typeof time === "number") {
                     ytPlayerRef.current.seekTo(time, true);
                 }
                 ytPlayerRef.current.playVideo();
             } else if (isVideoType === "local" && nativeVideoRef.current) {
-                if (typeof time === "number" && Math.abs(nativeVideoRef.current.currentTime - time) > 2) {
+                if (typeof time === "number") {
                     nativeVideoRef.current.currentTime = time;
                 }
                 nativeVideoRef.current.play();
             }
-            setTimeout(() => { isRemoteActionRef.current = false; }, 500);
+            setTimeout(() => { isRemoteActionRef.current = false; }, 100);
         });
 
         socket.on("video-pause", ({ time }: { time?: number }) => {
             isRemoteActionRef.current = true;
             if (isVideoType === "youtube" && ytPlayerRef.current) {
-                if (typeof time === "number" && Math.abs(ytPlayerRef.current.getCurrentTime() - time) > 2) {
+                ytPlayerRef.current.pauseVideo();
+                // Seek after pause to land on the exact frame
+                if (typeof time === "number") {
                     ytPlayerRef.current.seekTo(time, true);
                 }
-                ytPlayerRef.current.pauseVideo();
             } else if (isVideoType === "local" && nativeVideoRef.current) {
-                if (typeof time === "number" && Math.abs(nativeVideoRef.current.currentTime - time) > 2) {
+                nativeVideoRef.current.pause();
+                if (typeof time === "number") {
                     nativeVideoRef.current.currentTime = time;
                 }
-                nativeVideoRef.current.pause();
             }
-            setTimeout(() => { isRemoteActionRef.current = false; }, 500);
+            setTimeout(() => { isRemoteActionRef.current = false; }, 100);
         });
 
         socket.on("video-seek", ({ time }: { time: number }) => {
@@ -69,7 +71,7 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
             } else if (isVideoType === "local" && nativeVideoRef.current) {
                 nativeVideoRef.current.currentTime = time;
             }
-            setTimeout(() => { isRemoteActionRef.current = false; }, 500);
+            setTimeout(() => { isRemoteActionRef.current = false; }, 100);
         });
 
         socket.on("video-url-change", ({ newUrl }: { newUrl: string }) => {
@@ -99,20 +101,20 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
         if (!isOwner) return;
         if (isRemoteActionRef.current) return;
         const time = isVideoType === "youtube" ? ytPlayerRef.current?.getCurrentTime() : nativeVideoRef.current?.currentTime;
-        socket.emit("video-play", { roomId, time });
+        socket.volatile.emit("video-play", { roomId, time });
     };
 
     const handlePause = () => {
         if (!isOwner) return;
         if (isRemoteActionRef.current) return;
         const time = isVideoType === "youtube" ? ytPlayerRef.current?.getCurrentTime() : nativeVideoRef.current?.currentTime;
-        socket.emit("video-pause", { roomId, time });
+        socket.volatile.emit("video-pause", { roomId, time });
     };
 
     const handleSeek = (seconds: number) => {
         if (!isOwner) return;
         if (isRemoteActionRef.current) return;
-        socket.emit("video-seek", { roomId, time: seconds });
+        socket.volatile.emit("video-seek", { roomId, time: seconds });
     };
 
     const loadVideo = (e: React.FormEvent) => {
