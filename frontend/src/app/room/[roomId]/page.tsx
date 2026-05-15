@@ -6,7 +6,14 @@ import { useSession } from "next-auth/react";
 import { io, Socket } from "socket.io-client";
 import { useRoomStore } from "@/store/useRoomStore";
 import { Button } from "@/components/ui/button";
-import { LogOut, Mic, MicOff, Video, VideoOff, MonitorUp, Users as UsersIcon, MessageSquare, Copy, Check, Play } from "lucide-react";
+import { LogOut, Mic, MicOff, Video, VideoOff, MonitorUp, Users as UsersIcon, MessageSquare, Copy, Check, Play, Share2, Link2 } from "lucide-react";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from "@/components/ui/dialog";
 import ChatPanel from "@/components/ChatPanel";
 import ParticipantsPanel from "@/components/ParticipantsPanel";
 import CameraGrid from "@/components/CameraGrid";
@@ -31,6 +38,9 @@ export default function RoomPage() {
     const [isVideoOn, setIsVideoOn] = useState(false);
     const [isScreenSharing, setIsScreenSharing] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [showShareDialog, setShowShareDialog] = useState(false);
+    const [copiedLink, setCopiedLink] = useState(false);
+    const hasShownRoomToast = useRef(false);
 
     // UI Toggles
     const [showSidebar, setShowSidebar] = useState<"chat" | "participants" | null>("chat");
@@ -96,6 +106,15 @@ export default function RoomPage() {
                         isVideoOn: false,
                     }
                 });
+
+                // Show room code toast on first connection
+                if (!hasShownRoomToast.current) {
+                    hasShownRoomToast.current = true;
+                    toast({
+                        title: "🎉 Room Ready!",
+                        description: `Room code: ${roomId} — Share this with others to invite them.`,
+                    });
+                }
 
                 // Record recent room in backend
                 if (session?.user?.email) {
@@ -235,6 +254,13 @@ export default function RoomPage() {
         setTimeout(() => setCopied(false), 2000);
     }, [roomId]);
 
+    const copyShareLink = useCallback(() => {
+        const shareUrl = `${window.location.origin}/room/${roomId}`;
+        navigator.clipboard.writeText(shareUrl);
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2000);
+    }, [roomId]);
+
     if (status === "loading" || !socket) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950 text-white gap-4">
@@ -256,7 +282,7 @@ export default function RoomPage() {
                         <Play size={12} fill="white" className="ml-0.5" />
                     </div>
                     <h1 className="text-base font-bold tracking-tight">SyncRoom</h1>
-                    <div className="hidden sm:flex items-center ml-2">
+                    <div className="hidden sm:flex items-center ml-2 gap-1.5">
                         <button
                             onClick={copyRoomId}
                             className="flex items-center gap-1.5 px-3 py-1 glass rounded-lg text-xs font-mono text-zinc-400 hover:text-zinc-300 transition-all cursor-pointer"
@@ -264,7 +290,21 @@ export default function RoomPage() {
                             {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
                             {roomId}
                         </button>
+                        <button
+                            onClick={() => setShowShareDialog(true)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-xs font-medium text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 transition-all cursor-pointer"
+                        >
+                            <Share2 size={12} />
+                            Invite
+                        </button>
                     </div>
+                    {/* Mobile share button */}
+                    <button
+                        onClick={() => setShowShareDialog(true)}
+                        className="sm:hidden flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 transition-all cursor-pointer ml-2"
+                    >
+                        <Share2 size={14} />
+                    </button>
                 </div>
                 <div className="flex items-center gap-1 tour-topbar-actions">
                     <Button
@@ -362,6 +402,78 @@ export default function RoomPage() {
                     </aside>
                 )}
             </div>
+
+            {/* ── Share / Invite Dialog ──────────────────────────────── */}
+            <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
+                <DialogContent className="bg-zinc-950 border-zinc-800 text-white max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+                                <Share2 size={16} className="text-indigo-400" />
+                            </div>
+                            Invite People
+                        </DialogTitle>
+                        <DialogDescription className="text-zinc-400">
+                            Share the room code or link below so others can join your session.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 mt-2">
+                        {/* Room Code */}
+                        <div>
+                            <label className="text-[11px] uppercase tracking-wider text-zinc-500 font-medium mb-2 block">Room Code</label>
+                            <div className="flex items-center gap-2">
+                                <div className="flex-1 flex items-center justify-center px-4 py-3 rounded-xl bg-zinc-900/80 border border-zinc-800/60 font-mono text-xl tracking-[0.3em] text-white font-bold select-all">
+                                    {roomId}
+                                </div>
+                                <button
+                                    onClick={copyRoomId}
+                                    className={`h-12 w-12 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                                        copied
+                                            ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+                                            : "bg-zinc-800 border border-zinc-700/50 text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                                    }`}
+                                >
+                                    {copied ? <Check size={18} /> : <Copy size={18} />}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Divider */}
+                        <div className="flex items-center gap-3">
+                            <div className="flex-1 h-px bg-zinc-800" />
+                            <span className="text-[11px] text-zinc-600 uppercase">or</span>
+                            <div className="flex-1 h-px bg-zinc-800" />
+                        </div>
+
+                        {/* Share Link */}
+                        <div>
+                            <label className="text-[11px] uppercase tracking-wider text-zinc-500 font-medium mb-2 block">Shareable Link</label>
+                            <div className="flex items-center gap-2">
+                                <div className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800/60 text-sm text-zinc-400 overflow-hidden">
+                                    <Link2 size={14} className="text-zinc-500 shrink-0" />
+                                    <span className="truncate">{typeof window !== "undefined" ? `${window.location.origin}/room/${roomId}` : ``}</span>
+                                </div>
+                                <button
+                                    onClick={copyShareLink}
+                                    className={`h-10 px-4 rounded-xl flex items-center gap-1.5 text-sm font-medium transition-all duration-200 ${
+                                        copiedLink
+                                            ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+                                            : "bg-indigo-500 text-white hover:bg-indigo-600 shadow-lg shadow-indigo-500/20"
+                                    }`}
+                                >
+                                    {copiedLink ? <><Check size={14} /> Copied!</> : <><Copy size={14} /> Copy Link</>}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Hint */}
+                        <p className="text-[11px] text-zinc-600 text-center pt-1">
+                            Anyone with the code or link can join this room directly.
+                        </p>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
