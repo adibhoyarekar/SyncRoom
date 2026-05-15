@@ -40,7 +40,8 @@ export default function RoomPage() {
     const [copied, setCopied] = useState(false);
     const [showShareDialog, setShowShareDialog] = useState(false);
     const [copiedLink, setCopiedLink] = useState(false);
-    const hasShownRoomToast = useRef(false);
+    const [showRoomBanner, setShowRoomBanner] = useState(true);
+    const isTogglingCamera = useRef(false);
 
     // UI Toggles
     const [showSidebar, setShowSidebar] = useState<"chat" | "participants" | null>("chat");
@@ -107,14 +108,6 @@ export default function RoomPage() {
                     }
                 });
 
-                // Show room code toast on first connection
-                if (!hasShownRoomToast.current) {
-                    hasShownRoomToast.current = true;
-                    toast({
-                        title: "🎉 Room Ready!",
-                        description: `Room code: ${roomId} — Share this with others to invite them.`,
-                    });
-                }
 
                 // Record recent room in backend
                 if (session?.user?.email) {
@@ -217,24 +210,37 @@ export default function RoomPage() {
 
     const toggleCamera = useCallback(async () => {
         if (!localStream) return;
+        if (isTogglingCamera.current) return;
+        isTogglingCamera.current = true;
 
-        const newVideoOn = !isVideoOnRef.current;
+        try {
+            const newVideoOn = !isVideoOnRef.current;
 
-        if (newVideoOn) {
-            const track = await ensureVideoTrack();
-            if (track) {
-                track.enabled = true;
+            if (newVideoOn) {
+                // Try to use existing track first (fast path)
+                let track: MediaStreamTrack | null | undefined = localStream.getVideoTracks()[0];
+                if (track && track.readyState === "live") {
+                    track.enabled = true;
+                } else {
+                    // Track is dead/missing — re-acquire (slow path)
+                    track = await ensureVideoTrack();
+                    if (track) {
+                        track.enabled = true;
+                    } else {
+                        console.warn("Could not enable camera — no video track available");
+                        return;
+                    }
+                }
             } else {
-                console.warn("Could not enable camera — no video track available");
-                return;
+                localStream.getVideoTracks().forEach(track => track.enabled = false);
             }
-        } else {
-            localStream.getVideoTracks().forEach(track => track.enabled = false);
-        }
 
-        setIsVideoOn(newVideoOn);
-        if (socketId) updateUser(socketId, { isVideoOn: newVideoOn });
-        if (socket) socket.emit("toggle-camera", { roomId, userId: socketId, isVideoOn: newVideoOn });
+            setIsVideoOn(newVideoOn);
+            if (socketId) updateUser(socketId, { isVideoOn: newVideoOn });
+            if (socket) socket.emit("toggle-camera", { roomId, userId: socketId, isVideoOn: newVideoOn });
+        } finally {
+            isTogglingCamera.current = false;
+        }
     }, [localStream, socketId, socket, roomId, updateUser, ensureVideoTrack]);
 
     const handleScreenShare = useCallback(async () => {
@@ -276,66 +282,82 @@ export default function RoomPage() {
     return (
         <div className="h-screen flex flex-col bg-[#09090b] text-white overflow-hidden">
             {/* ── Top Navigation Bar ─────────────────────────────────── */}
-            <header className="h-13 border-b border-zinc-800/40 flex items-center justify-between px-5 shrink-0 z-10">
-                <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-lg bg-indigo-500 flex items-center justify-center">
-                        <Play size={12} fill="white" className="ml-0.5" />
+            <header className="border-b border-zinc-800/40 shrink-0 z-10">
+                <div className="h-13 flex items-center justify-between px-5">
+                    <div className="flex items-center gap-3">
+                        <div className="w-7 h-7 rounded-lg bg-indigo-500 flex items-center justify-center">
+                            <Play size={12} fill="white" className="ml-0.5" />
+                        </div>
+                        <h1 className="text-base font-bold tracking-tight">SyncRoom</h1>
                     </div>
-                    <h1 className="text-base font-bold tracking-tight">SyncRoom</h1>
-                    <div className="hidden sm:flex items-center ml-2 gap-1.5">
-                        <button
-                            onClick={copyRoomId}
-                            className="flex items-center gap-1.5 px-3 py-1 glass rounded-lg text-xs font-mono text-zinc-400 hover:text-zinc-300 transition-all cursor-pointer"
+                    <div className="flex items-center gap-1 tour-topbar-actions">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`h-9 px-3 gap-1.5 rounded-lg transition-all ${showSidebar === "participants" ? "bg-indigo-500/10 text-indigo-400" : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"}`}
+                            onClick={() => setShowSidebar(showSidebar === "participants" ? null : "participants")}
                         >
-                            {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                            {roomId}
-                        </button>
-                        <button
-                            onClick={() => setShowShareDialog(true)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-xs font-medium text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 transition-all cursor-pointer"
+                            <UsersIcon size={16} />
+                            <span className="hidden sm:inline text-xs">People</span>
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`h-9 px-3 gap-1.5 rounded-lg transition-all ${showSidebar === "chat" ? "bg-indigo-500/10 text-indigo-400" : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"}`}
+                            onClick={() => setShowSidebar(showSidebar === "chat" ? null : "chat")}
                         >
-                            <Share2 size={12} />
-                            Invite
+                            <MessageSquare size={16} />
+                            <span className="hidden sm:inline text-xs">Chat</span>
+                        </Button>
+                        <div className="w-px h-6 bg-zinc-800 mx-1" />
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => router.push("/dashboard")}
+                            className="h-9 px-3 gap-1.5 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all"
+                        >
+                            <LogOut size={16} />
+                            <span className="hidden sm:inline text-xs">Leave</span>
+                        </Button>
+                    </div>
+                </div>
+
+                {/* ── Persistent Room Code Banner ─────────────────────── */}
+                {showRoomBanner && (
+                    <div className="flex items-center justify-between px-5 py-2 bg-indigo-500/5 border-t border-indigo-500/10">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 shrink-0">
+                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                <span className="text-[11px] uppercase tracking-wider text-zinc-500 font-medium">Room Code</span>
+                            </div>
+                            <span className="font-mono text-sm font-bold text-indigo-300 tracking-wider">{roomId}</span>
+                            <button
+                                onClick={copyRoomId}
+                                className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium transition-all cursor-pointer ${
+                                    copied
+                                        ? "bg-emerald-500/10 text-emerald-400"
+                                        : "bg-zinc-800/50 text-zinc-400 hover:text-zinc-300 hover:bg-zinc-800"
+                                }`}
+                            >
+                                {copied ? <><Check size={10} /> Copied</> : <><Copy size={10} /> Copy</>}
+                            </button>
+                            <button
+                                onClick={() => setShowShareDialog(true)}
+                                className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-500/10 text-[11px] font-medium text-indigo-400 hover:bg-indigo-500/20 transition-all cursor-pointer"
+                            >
+                                <Share2 size={10} />
+                                Invite
+                            </button>
+                        </div>
+                        <button
+                            onClick={() => setShowRoomBanner(false)}
+                            className="text-zinc-600 hover:text-zinc-400 transition-colors ml-2 text-lg leading-none cursor-pointer"
+                            title="Dismiss"
+                        >
+                            ×
                         </button>
                     </div>
-                    {/* Mobile share button */}
-                    <button
-                        onClick={() => setShowShareDialog(true)}
-                        className="sm:hidden flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 transition-all cursor-pointer ml-2"
-                    >
-                        <Share2 size={14} />
-                    </button>
-                </div>
-                <div className="flex items-center gap-1 tour-topbar-actions">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className={`h-9 px-3 gap-1.5 rounded-lg transition-all ${showSidebar === "participants" ? "bg-indigo-500/10 text-indigo-400" : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"}`}
-                        onClick={() => setShowSidebar(showSidebar === "participants" ? null : "participants")}
-                    >
-                        <UsersIcon size={16} />
-                        <span className="hidden sm:inline text-xs">People</span>
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className={`h-9 px-3 gap-1.5 rounded-lg transition-all ${showSidebar === "chat" ? "bg-indigo-500/10 text-indigo-400" : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"}`}
-                        onClick={() => setShowSidebar(showSidebar === "chat" ? null : "chat")}
-                    >
-                        <MessageSquare size={16} />
-                        <span className="hidden sm:inline text-xs">Chat</span>
-                    </Button>
-                    <div className="w-px h-6 bg-zinc-800 mx-1" />
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => router.push("/dashboard")}
-                        className="h-9 px-3 gap-1.5 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all"
-                    >
-                        <LogOut size={16} />
-                        <span className="hidden sm:inline text-xs">Leave</span>
-                    </Button>
-                </div>
+                )}
             </header>
 
             {/* ── Main Layout ────────────────────────────────────────── */}

@@ -2,7 +2,7 @@
 
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LogOut, Plus, Tv2, ArrowRight, Clock, Play } from "lucide-react";
@@ -15,6 +15,7 @@ export default function Dashboard() {
     const [roomIdToJoin, setRoomIdToJoin] = useState("");
     const [recentRooms, setRecentRooms] = useState<{roomId: string, joinedAt: string}[]>([]);
     const [isLoadingRooms, setIsLoadingRooms] = useState(true);
+    const [isNavigating, setIsNavigating] = useState(false);
 
     useEffect(() => {
         if (status === "unauthenticated") {
@@ -50,25 +51,38 @@ export default function Dashboard() {
         }
     }, [status, session]);
 
-    const handleCreateRoom = () => {
+    const handleCreateRoom = useCallback(() => {
+        if (isNavigating) return;
+        setIsNavigating(true);
         const newRoomId = Math.random().toString(36).substring(2, 9);
         router.push(`/room/${newRoomId}`);
-    };
+    }, [isNavigating, router]);
 
-    const handleJoinRoom = (e: React.FormEvent) => {
+    const handleJoinRoom = useCallback((e: React.FormEvent) => {
         e.preventDefault();
+        if (isNavigating) return;
         if (roomIdToJoin.trim()) {
+            setIsNavigating(true);
             router.push(`/room/${roomIdToJoin.trim()}`);
         }
-    };
+    }, [isNavigating, roomIdToJoin, router]);
 
-    if (status === "loading" || !session) {
+    const handleRejoinRoom = useCallback((id: string) => {
+        if (isNavigating) return;
+        setIsNavigating(true);
+        router.push(`/room/${id}`);
+    }, [isNavigating, router]);
+
+    if (status === "loading" || !session || isNavigating) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-[#09090b]">
+            <div className="min-h-screen flex flex-col items-center justify-center bg-[#09090b] gap-3">
                 <div className="relative w-10 h-10">
                     <div className="absolute inset-0 rounded-full border-2 border-indigo-500/30 animate-ping" />
                     <div className="absolute inset-0 rounded-full border-2 border-t-indigo-500 animate-spin" />
                 </div>
+                {isNavigating && (
+                    <p className="text-sm text-zinc-400 font-medium animate-pulse">Entering room...</p>
+                )}
             </div>
         );
     }
@@ -197,7 +211,7 @@ export default function Dashboard() {
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ duration: 0.3, delay: 0.25 + i * 0.05 }}
-                                    onClick={() => router.push(`/room/${room.roomId}`)}
+                                    onClick={() => handleRejoinRoom(room.roomId)}
                                     className="glass rounded-xl p-4 text-left hover:border-zinc-700/50 group transition-all duration-300 cursor-pointer"
                                 >
                                     <div className="flex items-center gap-2.5 mb-3">
