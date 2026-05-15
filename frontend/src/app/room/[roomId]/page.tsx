@@ -12,6 +12,8 @@ import ParticipantsPanel from "@/components/ParticipantsPanel";
 import CameraGrid from "@/components/CameraGrid";
 import VideoPlayer from "@/components/VideoPlayer";
 import { useWebRTC } from "@/hooks/useWebRTC";
+import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000";
 
@@ -19,6 +21,7 @@ export default function RoomPage() {
     const { roomId } = useParams();
     const { data: session, status } = useSession();
     const router = useRouter();
+    const { toast } = useToast();
     const [socket, setSocket] = useState<Socket | null>(null);
     const [socketId, setSocketId] = useState<string>("");
 
@@ -145,10 +148,50 @@ export default function RoomPage() {
             updateUser(userId, { isMuted });
         });
 
+        newSocket.on("kicked", () => {
+            alert("You have been kicked from the room by the owner.");
+            router.push("/dashboard");
+        });
+
+        newSocket.on("force-mute", () => {
+            setIsMuted(true);
+            if (localStream) {
+                localStream.getAudioTracks().forEach(track => track.enabled = false);
+            }
+            if (newSocket.id) updateUser(newSocket.id, { isMuted: true });
+            toast({
+                title: "Force Muted",
+                description: "The room owner has muted your microphone.",
+                variant: "destructive",
+            });
+        });
+
+        newSocket.on("owner-status-update", ({ socketId, isOwner, isPrimaryOwner }: { socketId: string, isOwner: boolean, isPrimaryOwner: boolean }) => {
+            updateUser(socketId, { isOwner, isPrimaryOwner });
+            if (socketId === newSocket.id) {
+                toast({
+                    title: "Owner Access Granted",
+                    description: "You now have owner privileges in this room.",
+                });
+            }
+        });
+
+        newSocket.on("owner-request", ({ socketId, userName }: { socketId: string, userName: string }) => {
+            toast({
+                title: "Owner Access Request",
+                description: `${userName} is requesting owner access.`,
+                action: (
+                    <ToastAction altText="Accept" onClick={() => newSocket.emit("accept-owner-request", { roomId, targetSocketId: socketId })}>
+                        Accept
+                    </ToastAction>
+                ),
+            });
+        });
+
         return () => {
             newSocket.disconnect();
         };
-    }, [roomId, session, status, router, addMessage, addUser, removeUser, setUsers, updateUser]);
+    }, [roomId, session, status, router, addMessage, addUser, removeUser, setUsers, updateUser, localStream, toast]);
 
     if (status === "loading" || !socket) {
         return <div className="min-h-screen flex items-center justify-center bg-zinc-950 text-white">Connecting...</div>;
@@ -275,7 +318,7 @@ export default function RoomPage() {
                         {showSidebar === "chat" ? (
                             <ChatPanel socket={socket} roomId={roomId as string} />
                         ) : (
-                            <ParticipantsPanel />
+                            <ParticipantsPanel socket={socket} roomId={roomId as string} />
                         )}
                     </aside>
                 )}

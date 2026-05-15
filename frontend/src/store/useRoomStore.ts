@@ -7,6 +7,8 @@ interface User {
     isMuted?: boolean;
     isVideoOn?: boolean;
     stream?: MediaStream;
+    isOwner?: boolean;
+    isPrimaryOwner?: boolean;
 }
 
 interface Message {

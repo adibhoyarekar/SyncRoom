@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import YouTube, { YouTubeProps, YouTubePlayer, YouTubeEvent } from "react-youtube";
 
-import { Socket } from "socket.io-client";
+import { useRoomStore } from "@/store/useRoomStore";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Play, Upload } from "lucide-react";
@@ -14,6 +14,9 @@ interface VideoPlayerProps {
 }
 
 export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
+    const { users } = useRoomStore();
+    const isOwner = users.find(u => u.id === socket?.id)?.isOwner ?? false;
+
     const [url, setUrl] = useState("aqz-KE-bpKQ"); // YouTube Video ID
     const [isVideoType, setIsVideoType] = useState<"youtube" | "local">("youtube");
     const [localVideoUrl, setLocalVideoUrl] = useState("");
@@ -83,7 +86,7 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
             socket.off("video-seek");
             socket.off("video-url-change");
         };
-    }, [socket]);
+    }, [socket, isVideoType]);
 
     const extractYouTubeId = (urlStr: string) => {
         const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
@@ -92,24 +95,37 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
     };
 
     const handlePlay = () => {
+        if (!isOwner) {
+            // Revert state if not owner
+            if (isVideoType === "youtube" && ytPlayerRef.current) ytPlayerRef.current.pauseVideo();
+            else if (nativeVideoRef.current) nativeVideoRef.current.pause();
+            return;
+        }
         if (isRemoteActionRef.current) return;
         const time = isVideoType === "youtube" ? ytPlayerRef.current?.getCurrentTime() : nativeVideoRef.current?.currentTime;
         socket.emit("video-play", { roomId, time });
     };
 
     const handlePause = () => {
+        if (!isOwner) {
+            if (isVideoType === "youtube" && ytPlayerRef.current) ytPlayerRef.current.playVideo();
+            else if (nativeVideoRef.current) nativeVideoRef.current.play();
+            return;
+        }
         if (isRemoteActionRef.current) return;
         const time = isVideoType === "youtube" ? ytPlayerRef.current?.getCurrentTime() : nativeVideoRef.current?.currentTime;
         socket.emit("video-pause", { roomId, time });
     };
 
     const handleSeek = (seconds: number) => {
+        if (!isOwner) return;
         if (isRemoteActionRef.current) return;
         socket.emit("video-seek", { roomId, time: seconds });
     };
 
     const loadVideo = (e: React.FormEvent) => {
         e.preventDefault();
+        if (!isOwner) return;
         const videoId = extractYouTubeId(inputUrl);
         if (videoId) {
             setIsVideoType("youtube");
@@ -121,6 +137,7 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!isOwner) return;
         const file = e.target.files?.[0];
         if (file) {
             const objectUrl = URL.createObjectURL(file);
@@ -133,17 +150,18 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
         height: '100%',
         width: '100%',
         playerVars: {
-            autoplay: 0, // Disabled autoplay per user request
-            controls: 1,
-            disablekb: 0,
+            autoplay: 0, 
+            controls: isOwner ? 1 : 0, // Hide YouTube controls for non-owners
+            disablekb: isOwner ? 0 : 1, // Disable keyboard for non-owners
             rel: 0,
         },
     };
 
     return (
         <div className="flex flex-col h-full">
-            {/* Top control bar — static, always visible, not overlaid on video */}
-            <div className="shrink-0 bg-zinc-900 border-b border-zinc-800 px-3 py-2 flex gap-2 items-center">
+            {/* Top control bar — only visible to owners */}
+            {isOwner && (
+                <div className="shrink-0 bg-zinc-900 border-b border-zinc-800 px-3 py-2 flex gap-2 items-center">
                 <form onSubmit={loadVideo} className="flex-1 flex gap-2">
                     <Input
                         value={inputUrl}
@@ -172,6 +190,7 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
                     />
                 </form>
             </div>
+            )}
 
             {/* Player Wrapper */}
             <div className="flex-1 w-full bg-black relative flex items-center justify-center">

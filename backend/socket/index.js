@@ -13,37 +13,67 @@ export default function initSocket(io) {
             }
 
             const roomUsers = rooms.get(roomId);
-            roomUsers.set(socket.id, user);
+            
+            // Determine if first user (Primary Owner)
+            const isFirstUser = roomUsers.size === 0;
+            const enhancedUser = {
+                ...user,
+                isOwner: isFirstUser,
+                isPrimaryOwner: isFirstUser
+            };
+
+            roomUsers.set(socket.id, enhancedUser);
 
             // Notify others in room
-            socket.to(roomId).emit('user-joined', { socketId: socket.id, user });
+            socket.to(roomId).emit('user-joined', { socketId: socket.id, user: enhancedUser });
 
             // Send current users to the new user
             const usersInRoom = Array.from(roomUsers.entries()).map(([id, u]) => ({ socketId: id, user: u }));
             socket.emit('room-users', usersInRoom);
         });
 
-        // Video Sync
+        // Helper to check ownership
+        const isUserOwner = (roomId, socketId) => {
+            const roomUsers = rooms.get(roomId);
+            if (!roomUsers) return false;
+            const user = roomUsers.get(socketId);
+            return user && user.isOwner;
+        };
+
+        const isUserPrimaryOwner = (roomId, socketId) => {
+            const roomUsers = rooms.get(roomId);
+            if (!roomUsers) return false;
+            const user = roomUsers.get(socketId);
+            return user && user.isPrimaryOwner;
+        };
+
+        // Video Sync (Only owners)
         socket.on('video-play', ({ roomId, time }) => {
-            socket.to(roomId).emit('video-play', { time });
+            if (isUserOwner(roomId, socket.id)) {
+                socket.to(roomId).emit('video-play', { time });
+            }
         });
 
         socket.on('video-pause', ({ roomId, time }) => {
-            socket.to(roomId).emit('video-pause', { time });
+            if (isUserOwner(roomId, socket.id)) {
+                socket.to(roomId).emit('video-pause', { time });
+            }
         });
 
         socket.on('video-seek', ({ roomId, time }) => {
-            socket.to(roomId).emit('video-seek', { time });
+            if (isUserOwner(roomId, socket.id)) {
+                socket.to(roomId).emit('video-seek', { time });
+            }
         });
 
         socket.on('video-url-change', ({ roomId, newUrl }) => {
-            socket.to(roomId).emit('video-url-change', { newUrl });
+            if (isUserOwner(roomId, socket.id)) {
+                socket.to(roomId).emit('video-url-change', { newUrl });
+            }
         });
 
         // Chat
         socket.on('chat-message', ({ roomId, message }) => {
-            // message object: { id, userId, text, timestamp, userName, userImage }
-            // In a real app, save to mongo here
             io.to(roomId).emit('chat-message', message);
         });
 
@@ -72,6 +102,58 @@ export default function initSocket(io) {
             socket.to(roomId).emit('user-toggled-camera', { userId, isVideoOn });
         });
 
+        // Owner Controls
+        socket.on('kick-user', ({ roomId, targetSocketId }) => {
+            if (isUserOwner(roomId, socket.id)) {
+                // Emit to the target socket to force them out
+                io.to(targetSocketId).emit('kicked');
+            }
+        });
+
+        socket.on('force-mute', ({ roomId, targetSocketId }) => {
+            if (isUserOwner(roomId, socket.id)) {
+                io.to(targetSocketId).emit('force-mute');
+            }
+        });
+
+        socket.on('grant-owner', ({ roomId, targetSocketId }) => {
+            if (isUserOwner(roomId, socket.id)) {
+                const roomUsers = rooms.get(roomId);
+                if (roomUsers && roomUsers.has(targetSocketId)) {
+                    const targetUser = roomUsers.get(targetSocketId);
+                    targetUser.isOwner = true;
+                    roomUsers.set(targetSocketId, targetUser);
+                    io.to(roomId).emit('owner-status-update', { socketId: targetSocketId, isOwner: true });
+                }
+            }
+        });
+
+        socket.on('request-owner', ({ roomId, userName }) => {
+            // Find the primary owner and send the request only to them
+            const roomUsers = rooms.get(roomId);
+            if (roomUsers) {
+                for (const [id, u] of roomUsers.entries()) {
+                    if (u.isPrimaryOwner) {
+                        io.to(id).emit('owner-request', { socketId: socket.id, userName });
+                        break;
+                    }
+                }
+            }
+        });
+
+        socket.on('accept-owner-request', ({ roomId, targetSocketId }) => {
+            // Only primary owner can accept the request
+            if (isUserPrimaryOwner(roomId, socket.id)) {
+                const roomUsers = rooms.get(roomId);
+                if (roomUsers && roomUsers.has(targetSocketId)) {
+                    const targetUser = roomUsers.get(targetSocketId);
+                    targetUser.isOwner = true;
+                    roomUsers.set(targetSocketId, targetUser);
+                    io.to(roomId).emit('owner-status-update', { socketId: targetSocketId, isOwner: true });
+                }
+            }
+        });
+
         // WebRTC Signaling
         socket.on('webrtc-offer', ({ offer, to }) => {
             socket.to(to).emit('webrtc-offer', { offer, from: socket.id });
@@ -92,11 +174,22 @@ export default function initSocket(io) {
             for (const [roomId, roomUsers] of rooms.entries()) {
                 if (roomUsers.has(socket.id)) {
                     const user = roomUsers.get(socket.id);
+                    const wasPrimaryOwner = user.isPrimaryOwner;
+                    
                     roomUsers.delete(socket.id);
                     io.to(roomId).emit('user-left', { socketId: socket.id, user });
 
                     if (roomUsers.size === 0) {
                         rooms.delete(roomId);
+                    } else if (wasPrimaryOwner) {
+                        // If primary owner leaves, pass it to someone else (first available)
+                        const nextPrimaryId = Array.from(roomUsers.keys())[0];
+                        const nextPrimary = roomUsers.get(nextPrimaryId);
+                        nextPrimary.isOwner = true;
+                        nextPrimary.isPrimaryOwner = true;
+                        roomUsers.set(nextPrimaryId, nextPrimary);
+                        
+                        io.to(roomId).emit('owner-status-update', { socketId: nextPrimaryId, isOwner: true, isPrimaryOwner: true });
                     }
                 }
             }
