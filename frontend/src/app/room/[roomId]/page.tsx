@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { io, Socket } from "socket.io-client";
@@ -40,17 +40,12 @@ export default function RoomPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { localStream, toggleScreenShare, ensureVideoTrack } = useWebRTC(roomId as string, socketId);
 
-    // Set initial mute states
-    useEffect(() => {
-        if (localStream) {
-            localStream.getAudioTracks().forEach(track => {
-                track.enabled = !isMuted;
-            });
-            localStream.getVideoTracks().forEach(track => {
-                track.enabled = isVideoOn;
-            });
-        }
-    }, [localStream, isMuted, isVideoOn]);
+    // Refs to hold the latest toggle state so visibility handler can read
+    // them without creating new listener registrations on every toggle.
+    const isMutedRef = useRef(isMuted);
+    const isVideoOnRef = useRef(isVideoOn);
+    useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+    useEffect(() => { isVideoOnRef.current = isVideoOn; }, [isVideoOn]);
 
     // ── Visibility-change: re-sync track enabled state ─────────────────
     // When the user switches back to this tab, make sure the track enabled
@@ -64,10 +59,10 @@ export default function RoomPage() {
             // Small delay to let useWebRTC's own recovery run first
             setTimeout(() => {
                 localStream.getAudioTracks().forEach(t => {
-                    t.enabled = !isMuted;
+                    t.enabled = !isMutedRef.current;
                 });
                 localStream.getVideoTracks().forEach(t => {
-                    t.enabled = isVideoOn;
+                    t.enabled = isVideoOnRef.current;
                 });
             }, 300);
         };
@@ -78,7 +73,7 @@ export default function RoomPage() {
             document.removeEventListener("visibilitychange", syncTracks);
             window.removeEventListener("focus", syncTracks);
         };
-    }, [localStream, isMuted, isVideoOn]);
+    }, [localStream]);
 
     useEffect(() => {
         if (status === "unauthenticated") {
@@ -208,9 +203,11 @@ export default function RoomPage() {
     };
 
     const toggleCamera = async () => {
+        if (!localStream) return;
+
         const newVideoOn = !isVideoOn;
 
-        if (newVideoOn && localStream) {
+        if (newVideoOn) {
             // User wants camera ON — make sure the video track is alive
             const track = await ensureVideoTrack();
             if (track) {
@@ -220,13 +217,14 @@ export default function RoomPage() {
                 console.warn("Could not enable camera — no video track available");
                 return;
             }
-        } else if (!newVideoOn && localStream) {
-            // User wants camera OFF
+        } else {
+            // User wants camera OFF — just disable the track (don't stop it,
+            // so re-enabling is instant without re-acquiring from hardware)
             localStream.getVideoTracks().forEach(track => track.enabled = false);
         }
 
         setIsVideoOn(newVideoOn);
-        if (socketId) updateUser(socketId, { isVideoOn: newVideoOn });
+        if (socketId) updateUser(socketId, { isVideoOn: newVideoOn, stream: localStream });
         if (socket) socket.emit("toggle-camera", { roomId, userId: socketId, isVideoOn: newVideoOn });
     };
 

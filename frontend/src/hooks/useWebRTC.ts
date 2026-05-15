@@ -29,6 +29,9 @@ export function useWebRTC(roomId: string, userId: string) {
      * Ensures the video track on the local stream is alive.
      * If the browser killed/ended the track (e.g. tab switch), this re-acquires
      * a fresh video track and hot-swaps it into every active peer connection.
+     *
+     * Returns the live track, or null on failure.
+     * Does NOT call setLocalStream — the caller decides whether React needs a bump.
      */
     const ensureVideoTrack = useCallback(async (): Promise<MediaStreamTrack | null> => {
         const stream = localStreamRef.current;
@@ -65,9 +68,6 @@ export function useWebRTC(roomId: string, userId: string) {
                     ?.find((s: any) => s.track?.kind === "video");
                 if (sender) sender.replaceTrack(freshTrack);
             });
-
-            // Bump state so React re-renders with the updated stream
-            setLocalStream(stream);
 
             return freshTrack;
         } catch (err) {
@@ -113,8 +113,6 @@ export function useWebRTC(roomId: string, userId: string) {
                             ?.find((s: any) => s.track?.kind === "audio");
                         if (sender) sender.replaceTrack(freshAudio);
                     });
-
-                    setLocalStream(stream);
                 } catch { /* best effort */ }
             }
         };
