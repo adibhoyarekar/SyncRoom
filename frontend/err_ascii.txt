@@ -1,0 +1,3 @@
+.next/types/app/api/auth/[...nextauth]/route.ts(8,13): error TS2344: Type 'OmitWithTag<typeof import("C:/Users/Aditya Bhoyarekar/.gemini/antigravity/scratch/syncroom/frontend/src/app/api/auth/[...nextauth]/route"), "GET" | "POST" | "HEAD" | "OPTIONS" | "PUT" | ... 10 more ... | "maxDuration", "">' does not satisfy the constraint '{ [x: string]: never; }'.
+  Property 'authOptions' is incompatible with index signature.
+    Type 'any' is not assignable to type 'never'.
