@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { io, Socket } from "socket.io-client";
 import { useRoomStore } from "@/store/useRoomStore";
 import { Button } from "@/components/ui/button";
-import { LogOut, Mic, MicOff, Video, VideoOff, MonitorUp, Tv2, Users as UsersIcon, MessageSquare, Copy, Check } from "lucide-react";
+import { LogOut, Mic, MicOff, Video, VideoOff, MonitorUp, Users as UsersIcon, MessageSquare, Copy, Check, Play } from "lucide-react";
 import ChatPanel from "@/components/ChatPanel";
 import ParticipantsPanel from "@/components/ParticipantsPanel";
 import CameraGrid from "@/components/CameraGrid";
@@ -248,16 +248,18 @@ export default function RoomPage() {
     }
 
     return (
-        <div className="h-screen flex flex-col bg-zinc-950 text-white overflow-hidden">
+        <div className="h-screen flex flex-col bg-[#09090b] text-white overflow-hidden">
             {/* ── Top Navigation Bar ─────────────────────────────────── */}
-            <header className="h-14 border-b border-zinc-800/50 bg-zinc-900/60 backdrop-blur-lg flex items-center justify-between px-5 shrink-0 z-10">
+            <header className="h-13 border-b border-zinc-800/40 flex items-center justify-between px-5 shrink-0 z-10">
                 <div className="flex items-center gap-3">
-                    <Tv2 className="text-indigo-400" size={22} />
+                    <div className="w-7 h-7 rounded-lg bg-indigo-500 flex items-center justify-center">
+                        <Play size={12} fill="white" className="ml-0.5" />
+                    </div>
                     <h1 className="text-base font-bold tracking-tight">SyncRoom</h1>
                     <div className="hidden sm:flex items-center ml-2">
                         <button
                             onClick={copyRoomId}
-                            className="flex items-center gap-1.5 px-3 py-1 bg-zinc-800/80 hover:bg-zinc-700/80 border border-zinc-700/50 rounded-lg text-xs font-mono text-zinc-300 transition-all cursor-pointer"
+                            className="flex items-center gap-1.5 px-3 py-1 glass rounded-lg text-xs font-mono text-zinc-400 hover:text-zinc-300 transition-all cursor-pointer"
                         >
                             {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
                             {roomId}
@@ -309,13 +311,13 @@ export default function RoomPage() {
                         <CameraGrid currentUserId={socketId} />
 
                         {/* Video Player */}
-                        <div className="flex-1 flex flex-col bg-zinc-900/50 rounded-xl border border-zinc-800/50 overflow-hidden shadow-xl min-h-[300px] tour-video-player">
+                        <div className="flex-1 flex flex-col glass rounded-xl overflow-hidden min-h-[300px] tour-video-player">
                             <VideoPlayer socket={socket} roomId={roomId as string} />
                         </div>
                     </div>
 
                     {/* ── Bottom Control Bar ──────────────────────────────── */}
-                    <div className="h-16 bg-zinc-900/60 backdrop-blur-md border-t border-zinc-800/50 flex items-center justify-center gap-3 px-6 shrink-0 tour-controls">
+                    <div className="h-16 border-t border-zinc-800/40 flex items-center justify-center gap-3 px-6 shrink-0 tour-controls">
                         <button
                             onClick={toggleMic}
                             className={`h-11 w-11 rounded-full flex items-center justify-center transition-all duration-200 ${
@@ -351,7 +353,7 @@ export default function RoomPage() {
 
                 {/* ── Sidebar ────────────────────────────────────────── */}
                 {showSidebar && (
-                    <aside className="w-[340px] border-l border-zinc-800/50 bg-zinc-900/40 backdrop-blur-lg flex flex-col shrink-0 z-10 tour-sidebar">
+                    <aside className="w-[340px] border-l border-zinc-800/40 flex flex-col shrink-0 z-10 tour-sidebar">
                         {showSidebar === "chat" ? (
                             <ChatPanel socket={socket} roomId={roomId as string} />
                         ) : (

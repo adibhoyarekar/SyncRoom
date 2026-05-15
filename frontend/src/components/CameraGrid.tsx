@@ -110,7 +110,7 @@ export default function CameraGrid({ currentUserId }: { currentUserId: string })
                 return (
                     <div
                         key={user.id}
-                        className="relative aspect-video bg-zinc-900/80 border border-zinc-800/60 rounded-2xl overflow-hidden shadow-lg flex items-center justify-center group"
+                        className="relative aspect-video glass rounded-xl overflow-hidden flex items-center justify-center group"
                     >
                         {/* Always-mounted video element — shown/hidden via opacity */}
                         {user.stream && (
