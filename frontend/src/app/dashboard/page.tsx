@@ -32,14 +32,14 @@ export default function Dashboard() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    name: session.user.name,
-                    email: session.user.email,
-                    image: session.user.image,
+                    name: session.user?.name,
+                    email: session.user?.email,
+                    image: session.user?.image,
                 })
             })
             .then(() => {
                 // Then fetch recent rooms
-                return fetch(`${apiUrl}/api/users/recent-rooms?email=${encodeURIComponent(session.user.email as string)}`);
+                return fetch(`${apiUrl}/api/users/recent-rooms?email=${encodeURIComponent((session.user?.email as string) || "")}`);
             })
             .then(res => res.json())
             .then(data => {

@@ -91,9 +91,9 @@ export default function ParticipantsPanel({ socket, roomId }: ParticipantsPanelP
                                         <div className="font-medium text-sm flex items-center gap-2">
                                             {user.name} {isMe && <span className="text-xs text-zinc-500">(You)</span>}
                                             {user.isPrimaryOwner ? (
-                                                <Crown size={14} className="text-yellow-500" title="Primary Owner" />
+                                                <span title="Primary Owner"><Crown size={14} className="text-yellow-500" /></span>
                                             ) : user.isOwner ? (
-                                                <Crown size={14} className="text-zinc-400" title="Co-Owner" />
+                                                <span title="Co-Owner"><Crown size={14} className="text-zinc-400" /></span>
                                             ) : null}
                                         </div>
                                     </div>

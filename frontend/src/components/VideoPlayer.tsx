@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import YouTube, { YouTubeProps, YouTubePlayer, YouTubeEvent } from "react-youtube";
 
 import { useRoomStore } from "@/store/useRoomStore";
+import { Socket } from "socket.io-client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Play, Upload } from "lucide-react";
