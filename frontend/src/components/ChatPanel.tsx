@@ -273,9 +273,9 @@ export default function ChatPanel({ socket, roomId }: ChatPanelProps) {
     };
 
     return (
-        <div className="flex flex-col h-full bg-zinc-950/50 backdrop-blur-md">
-            <div className="p-4 border-b border-zinc-800">
-                <h2 className="font-semibold text-lg flex items-center gap-2">Room Chat</h2>
+        <div className="flex flex-col h-full">
+            <div className="p-4 border-b border-zinc-800/50">
+                <h2 className="font-semibold text-sm text-zinc-200">Chat</h2>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={scrollRef}>
@@ -315,7 +315,7 @@ export default function ChatPanel({ socket, roomId }: ChatPanelProps) {
             </div>
 
             {/* Input Area */}
-            <div className="p-4 bg-zinc-900 border-t border-zinc-800 relative">
+            <div className="p-3 border-t border-zinc-800/50 relative">
                 {/* ── Emoji Picker ─────────────────────────────────────── */}
                 {showEmojiPicker && (
                     <div

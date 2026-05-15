@@ -1,17 +1,16 @@
 "use client";
 
 import { useRoomStore } from "@/store/useRoomStore";
-import { MicOff } from "lucide-react";
+import { MicOff, VideoOff } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useRef } from "react";
 
 /**
  * Renders a <video> element attached to a MediaStream.
- * Handles tab-switch recovery by re-attaching srcObject when the page
- * becomes visible again — but NEVER toggles track.enabled, because
- * that is controlled by the user via the room controls.
+ * The video element is ALWAYS mounted — we toggle visibility via CSS
+ * instead of unmounting/remounting, which eliminates the flickering.
  */
-function VideoTile({ stream, isLocal }: { stream: MediaStream | undefined; isLocal?: boolean }) {
+function VideoTile({ stream, isLocal, isVideoOn }: { stream: MediaStream | undefined; isLocal?: boolean; isVideoOn?: boolean }) {
     const videoRef = useRef<HTMLVideoElement>(null);
 
     useEffect(() => {
@@ -19,8 +18,9 @@ function VideoTile({ stream, isLocal }: { stream: MediaStream | undefined; isLoc
         if (!video || !stream) return;
 
         const attach = () => {
-            // Re-assign srcObject to force the browser to reconnect
-            video.srcObject = stream;
+            if (video.srcObject !== stream) {
+                video.srcObject = stream;
+            }
             if (video.paused) {
                 video.play().catch(() => {/* autoplay policy — ignore */});
             }
@@ -28,20 +28,13 @@ function VideoTile({ stream, isLocal }: { stream: MediaStream | undefined; isLoc
 
         attach();
 
-        // When the tab comes back to foreground, re-attach the stream.
-        // Browsers can disconnect the srcObject or pause the element
-        // when the tab is hidden.
         const onVisible = () => {
-            if (document.visibilityState === "visible") {
-                attach();
-            }
+            if (document.visibilityState === "visible") attach();
         };
 
         document.addEventListener("visibilitychange", onVisible);
         window.addEventListener("focus", attach);
 
-        // Also listen for new tracks being added to the stream
-        // (e.g. when useWebRTC re-acquires a dead video track)
         const onTrackAdded = () => attach();
         stream.addEventListener("addtrack", onTrackAdded);
 
@@ -52,15 +45,13 @@ function VideoTile({ stream, isLocal }: { stream: MediaStream | undefined; isLoc
         };
     }, [stream]);
 
-    if (!stream) return null;
-
     return (
         <video
             ref={videoRef}
             autoPlay
             playsInline
-            muted={isLocal} // Always mute local video to prevent echo
-            className="w-full h-full object-cover rounded-xl"
+            muted={isLocal}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${isVideoOn && stream ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         />
     );
 }
@@ -103,47 +94,68 @@ export default function CameraGrid({ currentUserId }: { currentUserId: string })
 
     if (users.length === 0) return null;
 
+    // Determine grid layout class based on number of users
+    const gridClass = users.length <= 2
+        ? "grid-cols-1 sm:grid-cols-2"
+        : users.length <= 4
+            ? "grid-cols-2"
+            : "grid-cols-2 sm:grid-cols-3";
+
     return (
-        <div className="flex gap-4 overflow-x-auto pb-4 pt-1 snap-x scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent">
+        <div className={`grid ${gridClass} gap-3 mb-3`}>
             {users.map((user) => {
                 const isLocal = user.id === currentUserId;
-                const hasActiveVideo = user.isVideoOn && user.stream;
+                const showVideo = user.isVideoOn && user.stream;
 
                 return (
                     <div
                         key={user.id}
-                        className="relative shrink-0 w-64 h-36 bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden shadow-md snap-center flex items-center justify-center group"
+                        className="relative aspect-video bg-zinc-900/80 border border-zinc-800/60 rounded-2xl overflow-hidden shadow-lg flex items-center justify-center group"
                     >
-                        {hasActiveVideo ? (
-                            <VideoTile stream={user.stream!} isLocal={isLocal} />
-                        ) : (
-                            <div className="flex flex-col items-center justify-center opacity-50">
+                        {/* Always-mounted video element — shown/hidden via opacity */}
+                        {user.stream && (
+                            <VideoTile stream={user.stream} isLocal={isLocal} isVideoOn={user.isVideoOn} />
+                        )}
+
+                        {/* Avatar fallback — shown when video is off */}
+                        <div className={`flex flex-col items-center justify-center transition-opacity duration-300 ${showVideo ? 'opacity-0' : 'opacity-100'}`}>
+                            <div className="w-16 h-16 rounded-full bg-zinc-800 border-2 border-zinc-700/50 flex items-center justify-center overflow-hidden shadow-inner">
                                 <Image
                                     src={user.image || `https://api.dicebear.com/7.x/initials/svg?seed=${user.name}`}
                                     alt={user.name}
-                                    width={48}
-                                    height={48}
+                                    width={64}
+                                    height={64}
                                     unoptimized
-                                    className="rounded-full mb-2"
+                                    className="w-full h-full object-cover"
                                 />
                             </div>
-                        )}
+                            <span className="text-xs text-zinc-500 mt-2 font-medium">{user.name}</span>
+                        </div>
 
-                        {/* Persistent audio for remote users — always on regardless of video state */}
+                        {/* Persistent audio for remote users */}
                         {!isLocal && user.stream && !user.isMuted && (
                             <AudioTile stream={user.stream} />
                         )}
 
-                        {/* Name and Mute Indicator overlay */}
-                        <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
-                            <div className="bg-black/60 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-medium max-w-[80%] truncate">
-                                {user.name} {isLocal && "(You)"}
+                        {/* Bottom overlay bar */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-3 py-2.5 flex items-end justify-between">
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-medium text-white/90 truncate max-w-[120px]">
+                                    {user.name} {isLocal && <span className="text-indigo-400">(You)</span>}
+                                </span>
                             </div>
-                            {user.isMuted && (
-                                <div className="bg-red-500/80 backdrop-blur-sm p-1 rounded-md">
-                                    <MicOff size={14} className="text-white" />
-                                </div>
-                            )}
+                            <div className="flex items-center gap-1.5">
+                                {user.isMuted && (
+                                    <div className="bg-red-500/80 p-1 rounded-md">
+                                        <MicOff size={12} className="text-white" />
+                                    </div>
+                                )}
+                                {!user.isVideoOn && (
+                                    <div className="bg-zinc-700/80 p-1 rounded-md">
+                                        <VideoOff size={12} className="text-zinc-300" />
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 );
