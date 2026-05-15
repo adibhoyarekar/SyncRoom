@@ -1,10 +1,11 @@
 "use client";
 
 import { useRoomStore } from "@/store/useRoomStore";
-import { Mic, MicOff, Video, VideoOff, Crown, MoreVertical, ShieldAlert, UserMinus, KeySquare } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, Crown, MoreVertical, ShieldAlert, UserMinus, KeySquare, Volume2 } from "lucide-react";
 import Image from "next/image";
 import { Socket } from "socket.io-client";
 import { useSession } from "next-auth/react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
     DropdownMenu,
@@ -24,6 +25,22 @@ export default function ParticipantsPanel({ socket, roomId }: ParticipantsPanelP
 
     const localUser = users.find(u => u.id === socket?.id);
     const isOwner = localUser?.isOwner ?? false;
+    const [userVolumes, setUserVolumes] = useState<{ [id: string]: number }>({});
+    const [roomNameInput, setRoomNameInput] = useState("");
+
+    const setVolume = (userId: string, volume: number) => {
+        setUserVolumes(prev => ({ ...prev, [userId]: volume }));
+        // Find and set volume on the audio/video elements for this user
+        const audioElements = document.querySelectorAll(`audio, video`) as NodeListOf<HTMLMediaElement>;
+        audioElements.forEach(el => {
+            if (el.srcObject) {
+                const user = users.find(u => u.id === userId);
+                if (user?.stream && el.srcObject === user.stream) {
+                    el.volume = volume / 100;
+                }
+            }
+        });
+    };
 
     const handleKick = (targetId: string) => {
         socket.emit("kick-user", { roomId, targetSocketId: targetId });
@@ -49,6 +66,22 @@ export default function ParticipantsPanel({ socket, roomId }: ParticipantsPanelP
                 <h2 className="font-semibold text-sm text-zinc-200">Participants</h2>
                 <p className="text-xs text-zinc-500 mt-0.5">{users.length} in this room</p>
             </div>
+
+            {/* Room Name (owner only) */}
+            {isOwner && (
+                <div className="px-4 py-3 border-b border-zinc-800/50">
+                    <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium mb-1.5 block">Room Name</label>
+                    <form onSubmit={(e) => { e.preventDefault(); socket.emit("set-room-name", { roomId, name: roomNameInput }); }} className="flex gap-1.5">
+                        <input
+                            value={roomNameInput}
+                            onChange={(e) => setRoomNameInput(e.target.value)}
+                            placeholder="e.g. Movie Night 🎬"
+                            className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                        <Button type="submit" size="sm" className="h-7 text-[10px] bg-indigo-600 hover:bg-indigo-500">Set</Button>
+                    </form>
+                </div>
+            )}
 
             {localUser && !isOwner && (
                 <div className="px-4 py-3 border-b border-zinc-800/50">
@@ -103,6 +136,22 @@ export default function ParticipantsPanel({ socket, roomId }: ParticipantsPanelP
                                         {user.isMuted ? <MicOff size={14} className="text-red-400/70" /> : <Mic size={14} />}
                                         {user.isVideoOn ? <Video size={14} /> : <VideoOff size={14} className="text-red-400/70" />}
                                     </div>
+
+                                    {/* Per-user volume slider (remote only) */}
+                                    {!isMe && (
+                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Volume2 size={12} className="text-zinc-500" />
+                                            <input
+                                                type="range"
+                                                min={0}
+                                                max={100}
+                                                value={userVolumes[user.id] ?? 100}
+                                                onChange={(e) => setVolume(user.id, parseInt(e.target.value))}
+                                                className="w-16 h-1 accent-indigo-500 cursor-pointer"
+                                                title={`Volume: ${userVolumes[user.id] ?? 100}%`}
+                                            />
+                                        </div>
+                                    )}
 
                                     {/* Owner Actions Dropdown */}
                                     {isOwner && !isMe && !user.isPrimaryOwner && (

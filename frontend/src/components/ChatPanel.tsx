@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Socket } from "socket.io-client";
 import { useRoomStore } from "@/store/useRoomStore";
 import { useSession } from "next-auth/react";
@@ -186,13 +186,41 @@ export default function ChatPanel({ socket, roomId }: ChatPanelProps) {
     const inputRef = useRef<HTMLInputElement>(null);
     const typingTimeoutsRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
     const lastTypingEmitRef = useRef(0);
+    const [chatSoundEnabled, setChatSoundEnabled] = useState(true);
+    const prevMessageCountRef = useRef(messages.length);
 
-    // Auto-scroll to bottom
+    // Play a subtle notification sound
+    const playNotificationSound = useCallback(() => {
+        if (!chatSoundEnabled) return;
+        try {
+            const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.05);
+            gain.gain.setValueAtTime(0.08, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.3);
+        } catch { /* Audio not available */ }
+    }, [chatSoundEnabled]);
+
+    // Auto-scroll to bottom + play sound for new messages
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-    }, [messages]);
+        // Play sound if a new message arrived from someone else
+        if (messages.length > prevMessageCountRef.current) {
+            const latest = messages[messages.length - 1];
+            if (latest && latest.userName !== session?.user?.name) {
+                playNotificationSound();
+            }
+        }
+        prevMessageCountRef.current = messages.length;
+    }, [messages, session, playNotificationSound]);
 
     // Close emoji picker when clicking outside
     useEffect(() => {
@@ -274,8 +302,19 @@ export default function ChatPanel({ socket, roomId }: ChatPanelProps) {
 
     return (
         <div className="flex flex-col h-full">
-            <div className="p-4 border-b border-zinc-800/50">
+            <div className="p-4 border-b border-zinc-800/50 flex items-center justify-between">
                 <h2 className="font-semibold text-sm text-zinc-200">Chat</h2>
+                <button
+                    onClick={() => setChatSoundEnabled(!chatSoundEnabled)}
+                    className={`text-xs px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
+                        chatSoundEnabled
+                            ? "bg-indigo-500/10 text-indigo-400"
+                            : "bg-zinc-800 text-zinc-500"
+                    }`}
+                    title={chatSoundEnabled ? "Mute chat sounds" : "Unmute chat sounds"}
+                >
+                    {chatSoundEnabled ? "🔔" : "🔕"}
+                </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={scrollRef}>

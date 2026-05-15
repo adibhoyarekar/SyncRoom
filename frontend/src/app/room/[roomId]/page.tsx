@@ -6,7 +6,8 @@ import { useSession } from "next-auth/react";
 import { io, Socket } from "socket.io-client";
 import { useRoomStore } from "@/store/useRoomStore";
 import { Button } from "@/components/ui/button";
-import { LogOut, Mic, MicOff, Video, VideoOff, MonitorUp, Users as UsersIcon, MessageSquare, Copy, Check, Play, Share2, Link2 } from "lucide-react";
+import { LogOut, Mic, MicOff, Video, VideoOff, MonitorUp, Users as UsersIcon, MessageSquare, Copy, Check, Play, Share2, Link2, WifiOff } from "lucide-react";
+import EmojiReactions from "@/components/EmojiReactions";
 import {
     Dialog,
     DialogContent,
@@ -42,6 +43,8 @@ export default function RoomPage() {
     const [copiedLink, setCopiedLink] = useState(false);
     const [showRoomBanner, setShowRoomBanner] = useState(true);
     const isTogglingCamera = useRef(false);
+    const [roomName, setRoomName] = useState("");
+    const [isDisconnected, setIsDisconnected] = useState(false);
 
     // UI Toggles
     const [showSidebar, setShowSidebar] = useState<"chat" | "participants" | null>("chat");
@@ -71,10 +74,15 @@ export default function RoomPage() {
 
         const newSocket = io(SOCKET_URL, {
             withCredentials: true,
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
         });
         setSocket(newSocket);
 
         newSocket.on("connect", () => {
+            setIsDisconnected(false);
             if (newSocket.id) {
                 setSocketId(newSocket.id);
                 newSocket.emit("join-room", {
@@ -111,14 +119,45 @@ export default function RoomPage() {
 
         newSocket.on("user-joined", ({ socketId, user }) => {
             addUser({ id: socketId, ...user });
+            toast({ title: `${user.name || "Someone"} joined`, description: "A new participant entered the room." });
         });
 
         newSocket.on("user-left", ({ socketId }) => {
+            const leftUser = useRoomStore.getState().users.find(u => u.id === socketId);
             removeUser(socketId);
+            if (leftUser) {
+                toast({ title: `${leftUser.name} left`, description: "They have left the room." });
+            }
         });
 
         newSocket.on("chat-message", (message) => {
             addMessage(message);
+        });
+
+        // Room name changes
+        newSocket.on("room-name-changed", ({ name }: { name: string }) => {
+            setRoomName(name);
+        });
+
+        // Auto-reconnect events
+        newSocket.on("disconnect", () => {
+            setIsDisconnected(true);
+        });
+
+        newSocket.on("reconnect", () => {
+            setIsDisconnected(false);
+            // Re-join room after reconnect
+            if (newSocket.id) {
+                newSocket.emit("join-room", {
+                    roomId,
+                    user: {
+                        name: session?.user?.name || "Guest",
+                        image: session?.user?.image || "",
+                        isMuted: isMutedRef.current,
+                        isVideoOn: isVideoOnRef.current,
+                    }
+                });
+            }
         });
 
         // Sync remote users' camera and mic state changes
@@ -233,6 +272,43 @@ export default function RoomPage() {
         }
     }, [isScreenSharing, toggleScreenShare]);
 
+    // ── Keyboard Shortcuts ──────────────────────────────────────────────
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement;
+            if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+
+            switch (e.key.toLowerCase()) {
+                case "m":
+                    e.preventDefault();
+                    toggleMic();
+                    break;
+                case "v":
+                    e.preventDefault();
+                    toggleCamera();
+                    break;
+                case "f":
+                    if (!e.ctrlKey && !e.metaKey) {
+                        e.preventDefault();
+                        if (document.fullscreenElement) {
+                            document.exitFullscreen();
+                        } else {
+                            document.documentElement.requestFullscreen();
+                        }
+                    }
+                    break;
+                case "escape":
+                    if (document.fullscreenElement) {
+                        document.exitFullscreen();
+                    }
+                    break;
+            }
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [toggleMic, toggleCamera]);
+
     const copyRoomId = useCallback(() => {
         navigator.clipboard.writeText(roomId as string);
         setCopied(true);
@@ -267,7 +343,9 @@ export default function RoomPage() {
                         <div className="w-7 h-7 rounded-lg bg-indigo-500 flex items-center justify-center">
                             <Play size={12} fill="white" className="ml-0.5" />
                         </div>
-                        <h1 className="text-base font-bold tracking-tight">SyncRoom</h1>
+                        <h1 className="text-base font-bold tracking-tight">
+                            {roomName || "SyncRoom"}
+                        </h1>
                     </div>
                     <div className="flex items-center gap-1 tour-topbar-actions">
                         <Button
@@ -387,8 +465,22 @@ export default function RoomPage() {
                                     : "bg-zinc-800 hover:bg-zinc-700 text-zinc-200"
                             }`}
                         >
-                            <MonitorUp size={18} />
+                        <MonitorUp size={18} />
                         </button>
+                    </div>
+
+                    {/* ── Emoji Reactions Bar ─────────────────────────── */}
+                    {socket && (
+                        <div className="mt-2 flex justify-center">
+                            <EmojiReactions socket={socket} roomId={roomId as string} />
+                        </div>
+                    )}
+
+                    {/* ── Keyboard Shortcuts Hint ─────────────────────── */}
+                    <div className="mt-1 flex justify-center">
+                        <p className="text-[9px] text-zinc-600 tracking-wide">
+                            M mute · V camera · F fullscreen
+                        </p>
                     </div>
                 </main>
 
@@ -475,6 +567,17 @@ export default function RoomPage() {
                     </div>
                 </DialogContent>
             </Dialog>
+            {/* ── Disconnected Overlay ─────────────────────────────── */}
+            {isDisconnected && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-3 text-center">
+                        <WifiOff size={32} className="text-red-400 animate-pulse" />
+                        <h3 className="text-lg font-semibold text-white">Connection Lost</h3>
+                        <p className="text-sm text-zinc-400">Reconnecting automatically...</p>
+                        <div className="w-8 h-8 border-2 border-t-indigo-500 border-zinc-700 rounded-full animate-spin" />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

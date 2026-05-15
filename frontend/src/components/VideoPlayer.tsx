@@ -7,7 +7,7 @@ import { useRoomStore } from "@/store/useRoomStore";
 import { Socket } from "socket.io-client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Play, Upload } from "lucide-react";
+import { Play, Upload, PictureInPicture2, Check, AlertTriangle } from "lucide-react";
 
 interface VideoPlayerProps {
     socket: Socket;
@@ -26,14 +26,23 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
     const nativeVideoRef = useRef<HTMLVideoElement | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // PiP state
+    const [isPiP, setIsPiP] = useState(false);
+
+    // Sync status
+    const [syncStatus, setSyncStatus] = useState<"synced" | "behind" | "unknown">("unknown");
+    const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const ownerTimeRef = useRef<number | null>(null);
+
     // To prevent infinite loops when receiving socket events that trigger local events
     const isRemoteActionRef = useRef(false);
 
     useEffect(() => {
+        // Sync status tracking (non-owners check against owner's time)
         socket.on("video-play", ({ time }: { time?: number }) => {
+            if (typeof time === "number") ownerTimeRef.current = time;
             isRemoteActionRef.current = true;
             if (isVideoType === "youtube" && ytPlayerRef.current) {
-                // Always sync to the exact time on play
                 if (typeof time === "number") {
                     ytPlayerRef.current.seekTo(time, true);
                 }
@@ -48,10 +57,10 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
         });
 
         socket.on("video-pause", ({ time }: { time?: number }) => {
+            if (typeof time === "number") ownerTimeRef.current = time;
             isRemoteActionRef.current = true;
             if (isVideoType === "youtube" && ytPlayerRef.current) {
                 ytPlayerRef.current.pauseVideo();
-                // Seek after pause to land on the exact frame
                 if (typeof time === "number") {
                     ytPlayerRef.current.seekTo(time, true);
                 }
@@ -65,6 +74,7 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
         });
 
         socket.on("video-seek", ({ time }: { time: number }) => {
+            ownerTimeRef.current = time;
             isRemoteActionRef.current = true;
             if (isVideoType === "youtube" && ytPlayerRef.current) {
                 ytPlayerRef.current.seekTo(time, true);
@@ -140,6 +150,49 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
         }
     };
 
+    // ── PiP toggle ──────────────────────────────────────────────────
+    const togglePiP = async () => {
+        try {
+            if (document.pictureInPictureElement) {
+                await document.exitPictureInPicture();
+                setIsPiP(false);
+            } else if (nativeVideoRef.current) {
+                await nativeVideoRef.current.requestPictureInPicture();
+                setIsPiP(true);
+                nativeVideoRef.current.addEventListener("leavepictureinpicture", () => setIsPiP(false), { once: true });
+            }
+        } catch (err) {
+            console.warn("PiP not supported:", err);
+        }
+    };
+
+    // ── Sync status check (non-owners) ──────────────────────────────
+    useEffect(() => {
+        if (isOwner) {
+            setSyncStatus("synced");
+            return;
+        }
+
+        syncIntervalRef.current = setInterval(() => {
+            if (ownerTimeRef.current === null) {
+                setSyncStatus("unknown");
+                return;
+            }
+            let currentTime = 0;
+            if (isVideoType === "youtube" && ytPlayerRef.current) {
+                currentTime = ytPlayerRef.current.getCurrentTime() || 0;
+            } else if (isVideoType === "local" && nativeVideoRef.current) {
+                currentTime = nativeVideoRef.current.currentTime || 0;
+            }
+            const diff = Math.abs(currentTime - (ownerTimeRef.current || 0));
+            setSyncStatus(diff < 2 ? "synced" : "behind");
+        }, 3000);
+
+        return () => {
+            if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+        };
+    }, [isOwner, isVideoType]);
+
     const opts: YouTubeProps['opts'] = {
         height: '100%',
         width: '100%',
@@ -188,6 +241,31 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
 
             {/* Player Wrapper */}
             <div className={`flex-1 w-full bg-black relative flex items-center justify-center tour-video-player ${!isOwner ? 'pointer-events-none' : ''}`}>
+                {/* Sync Status Badge */}
+                {!isOwner && syncStatus !== "unknown" && (
+                    <div className={`absolute top-3 right-3 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium backdrop-blur-md pointer-events-auto ${
+                        syncStatus === "synced"
+                            ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+                            : "bg-amber-500/10 border border-amber-500/30 text-amber-400"
+                    }`}>
+                        {syncStatus === "synced" ? <><Check size={10} /> In Sync</> : <><AlertTriangle size={10} /> Behind</>}
+                    </div>
+                )}
+
+                {/* PiP Button (local video only) */}
+                {isVideoType === "local" && nativeVideoRef.current && (
+                    <button
+                        onClick={togglePiP}
+                        className={`absolute top-3 left-3 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium backdrop-blur-md pointer-events-auto cursor-pointer transition-colors ${
+                            isPiP
+                                ? "bg-indigo-500/20 border border-indigo-500/40 text-indigo-300"
+                                : "bg-zinc-800/60 border border-zinc-700/50 text-zinc-300 hover:bg-zinc-700/60"
+                        }`}
+                    >
+                        <PictureInPicture2 size={12} />
+                        {isPiP ? "Exit PiP" : "PiP"}
+                    </button>
+                )}
                 {isVideoType === "youtube" ? (
                     <YouTube
                         videoId={url}

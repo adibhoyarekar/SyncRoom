@@ -72,6 +72,28 @@ export default function initSocket(io) {
             }
         });
 
+        // Emoji Reactions (broadcast to everyone including sender)
+        socket.on('emoji-reaction', ({ roomId, emoji, userName }) => {
+            io.to(roomId).emit('emoji-reaction', { emoji, userName, senderId: socket.id });
+        });
+
+        // Room Name
+        socket.on('set-room-name', ({ roomId, name }) => {
+            if (isUserOwner(roomId, socket.id)) {
+                io.to(roomId).emit('room-name-changed', { name });
+            }
+        });
+
+        // Video sync state request (new joiners get current state)
+        socket.on('request-sync-state', ({ roomId }) => {
+            // Ask all others in room for their current playback time
+            socket.to(roomId).emit('sync-state-request', { requesterId: socket.id });
+        });
+
+        socket.on('sync-state-response', ({ requesterId, time, isPlaying }) => {
+            io.to(requesterId).emit('sync-state-response', { time, isPlaying });
+        });
+
         // Chat
         socket.on('chat-message', ({ roomId, message }) => {
             io.to(roomId).emit('chat-message', message);
