@@ -27,28 +27,10 @@ function VideoTile({ stream, isLocal, isVideoOn }: { stream: MediaStream | undef
 
         attach();
 
-        // On tab return: force re-attach to recover from frozen frames
-        const onVisible = () => {
-            if (document.visibilityState === "visible") {
-                // Short delay lets recovered tracks settle before re-attaching
-                setTimeout(() => {
-                    // Force the browser to re-read the stream
-                    video.srcObject = null;
-                    video.srcObject = stream;
-                    video.play().catch(() => {});
-                }, 350);
-            }
-        };
-
-        document.addEventListener("visibilitychange", onVisible);
-        window.addEventListener("focus", onVisible);
-
         const onTrackAdded = () => attach();
         stream.addEventListener("addtrack", onTrackAdded);
 
         return () => {
-            document.removeEventListener("visibilitychange", onVisible);
-            window.removeEventListener("focus", onVisible);
             stream.removeEventListener("addtrack", onTrackAdded);
         };
     }, [stream]);
@@ -81,17 +63,7 @@ function AudioTile({ stream }: { stream: MediaStream }) {
 
         attachAudio();
 
-        const onVisible = () => {
-            if (document.visibilityState === "visible") attachAudio();
-        };
-
-        document.addEventListener("visibilitychange", onVisible);
-        window.addEventListener("focus", attachAudio);
-
-        return () => {
-            document.removeEventListener("visibilitychange", onVisible);
-            window.removeEventListener("focus", attachAudio);
-        };
+        return () => {};
     }, [stream]);
 
     return <audio ref={audioRef} autoPlay />;

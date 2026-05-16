@@ -27,9 +27,6 @@ export function useWebRTC(
     const localStreamRef = useRef<MediaStream | null>(null);
     const isRecoveringRef = useRef(false);
     const userIdRef = useRef(userId);
-    // Track page visibility so we can ignore browser-initiated track kills
-    // that happen when the tab is backgrounded
-    const pageHiddenRef = useRef(false);
 
     // Keep refs in sync
     useEffect(() => {
@@ -164,49 +161,18 @@ export function useWebRTC(
         }
     }, [ensureVideoTrack, ensureAudioTrack, isMutedRef, isVideoOnRef, updateUser]);
 
-    // ── Visibility-change recovery ──────────────────────────────────────
-    useEffect(() => {
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === "hidden") {
-                // Mark page as hidden so track-ended events don't fire recovery
-                // while the browser is allowed to suspend the tab
-                pageHiddenRef.current = true;
-                return;
-            }
-            // Page is now visible — clear hidden flag and immediately recover
-            pageHiddenRef.current = false;
-            recoverMedia();
-        };
-
-        const handleFocus = () => {
-            pageHiddenRef.current = false;
-            recoverMedia();
-        };
-
-        document.addEventListener("visibilitychange", handleVisibilityChange);
-        window.addEventListener("focus", handleFocus);
-        return () => {
-            document.removeEventListener("visibilitychange", handleVisibilityChange);
-            window.removeEventListener("focus", handleFocus);
-        };
-    }, [recoverMedia]);
-
     // ── Track-ended listeners ───────────────────────────────────────────
     // Detect when the browser kills a track (e.g. hardware error,
     // permission revocation) and recover immediately.
-    // NOTE: We skip recovery if the page is currently hidden — the browser
-    // will end tracks when backgrounded and we recover on visibility restore.
     useEffect(() => {
         const stream = localStreamRef.current;
         if (!stream) return;
 
         const onVideoEnded = () => {
-            if (pageHiddenRef.current) return; // Will be recovered on tab return
             console.log("[useWebRTC] Video track ended — triggering recovery");
             recoverMedia();
         };
         const onAudioEnded = () => {
-            if (pageHiddenRef.current) return; // Will be recovered on tab return
             console.log("[useWebRTC] Audio track ended — triggering recovery");
             recoverMedia();
         };
