@@ -17,20 +17,33 @@ function VideoTile({ stream, isLocal, isVideoOn }: { stream: MediaStream | undef
         const video = videoRef.current;
         if (!video || !stream) return;
 
-        const attach = () => {
+        const attach = async () => {
+            if (!video || !stream) return;
             if (video.srcObject !== stream) {
                 video.srcObject = stream;
             }
-            // Always call play — handles browser suspending the element
-            video.play().catch(() => {/* autoplay policy — ignore */});
+            try {
+                await video.play();
+            } catch (err) {
+                // Ignore autoplay policy errors safely
+            }
         };
 
         attach();
 
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible") attach();
+        };
+        const handleFocus = () => attach();
         const onTrackAdded = () => attach();
+
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        window.addEventListener("focus", handleFocus);
         stream.addEventListener("addtrack", onTrackAdded);
 
         return () => {
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+            window.removeEventListener("focus", handleFocus);
             stream.removeEventListener("addtrack", onTrackAdded);
         };
     }, [stream]);
@@ -41,6 +54,7 @@ function VideoTile({ stream, isLocal, isVideoOn }: { stream: MediaStream | undef
             autoPlay
             playsInline
             muted={isLocal}
+            disablePictureInPicture={true}
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${isVideoOn && stream ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         />
     );
@@ -54,16 +68,34 @@ function AudioTile({ stream }: { stream: MediaStream }) {
         const audio = audioRef.current;
         if (!audio || !stream) return;
 
-        const attachAudio = () => {
-            audio.srcObject = stream;
+        const attachAudio = async () => {
+            if (!audio || !stream) return;
+            if (audio.srcObject !== stream) {
+                audio.srcObject = stream;
+            }
             if (audio.paused) {
-                audio.play().catch(() => {/* autoplay policy */});
+                try {
+                    await audio.play();
+                } catch (err) {
+                    // Ignore autoplay policy errors safely
+                }
             }
         };
 
         attachAudio();
 
-        return () => {};
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible") attachAudio();
+        };
+        const handleFocus = () => attachAudio();
+
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        window.addEventListener("focus", handleFocus);
+
+        return () => {
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+            window.removeEventListener("focus", handleFocus);
+        };
     }, [stream]);
 
     return <audio ref={audioRef} autoPlay />;

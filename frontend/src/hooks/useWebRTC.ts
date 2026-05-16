@@ -252,9 +252,8 @@ export function useWebRTC(
 
         return () => {
             newPeer.destroy();
-            if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach(track => track.stop());
-            }
+            // We intentionally DO NOT stop the tracks here to prevent
+            // component rerenders or StrictMode from killing the persistent camera feed.
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId, roomId]);
