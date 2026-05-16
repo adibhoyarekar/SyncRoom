@@ -27,6 +27,9 @@ export function useWebRTC(
     const localStreamRef = useRef<MediaStream | null>(null);
     const isRecoveringRef = useRef(false);
     const userIdRef = useRef(userId);
+    // Track page visibility so we can ignore browser-initiated track kills
+    // that happen when the tab is backgrounded
+    const pageHiddenRef = useRef(false);
 
     // Keep refs in sync
     useEffect(() => {
@@ -109,13 +112,13 @@ export function useWebRTC(
         }
     }, [hotSwapTrack]);
 
-    // ── Unified media recovery ──────────────────────────────────────────
+    // ── Unified media recovery ──────────────────────────────────────
     // Single recovery function used by both visibility-change and
     // track-ended handlers.  Serialized via isRecoveringRef.
     //
-    // CRITICAL: After recovering tracks this function pushes the updated
-    // stream reference + media-state flags into the Zustand store so that
-    // CameraGrid and other UI components re-render with fresh data.
+    // KEY BEHAVIOUR: We ALWAYS keep the hardware track alive (readyState=live).
+    // User preference (camera on/off) is reflected via track.enabled only.
+    // This prevents the browser from truly killing the camera between tabs.
     const recoverMedia = useCallback(async () => {
         if (isRecoveringRef.current) return;
         isRecoveringRef.current = true;
@@ -124,25 +127,22 @@ export function useWebRTC(
             const stream = localStreamRef.current;
             if (!stream) return;
 
-            // ── Video ──
             const wantVideo = isVideoOnRef?.current ?? false;
-            const vTrack = stream.getVideoTracks()[0];
+            const wantAudio = !(isMutedRef?.current ?? true);
 
-            if (wantVideo) {
-                if (!vTrack || vTrack.readyState === "ended") {
-                    const fresh = await ensureVideoTrack();
-                    if (fresh) fresh.enabled = true;
-                } else {
-                    vTrack.enabled = true;
-                }
+            // ── Video ──
+            // Always ensure a live video track exists in the stream regardless of
+            // whether the user wants it on or off.  Only .enabled reflects preference.
+            const vTrack = stream.getVideoTracks()[0];
+            if (!vTrack || vTrack.readyState === "ended") {
+                const fresh = await ensureVideoTrack();
+                if (fresh) fresh.enabled = wantVideo;
             } else {
-                stream.getVideoTracks().forEach(t => { t.enabled = false; });
+                vTrack.enabled = wantVideo;
             }
 
             // ── Audio ──
-            const wantAudio = !(isMutedRef?.current ?? true);
             const aTrack = stream.getAudioTracks()[0];
-
             if (!aTrack || aTrack.readyState === "ended") {
                 const fresh = await ensureAudioTrack();
                 if (fresh) fresh.enabled = wantAudio;
@@ -150,9 +150,7 @@ export function useWebRTC(
                 aTrack.enabled = wantAudio;
             }
 
-            // ── Push updated state into Zustand store ──
-            // This forces CameraGrid to re-render with the live stream and
-            // correct isVideoOn / isMuted values, preventing UI desync.
+            // ── Push confirmed state into Zustand store ──
             const uid = userIdRef.current;
             if (uid) {
                 updateUser(uid, {
@@ -168,34 +166,49 @@ export function useWebRTC(
 
     // ── Visibility-change recovery ──────────────────────────────────────
     useEffect(() => {
-        const handleVisibility = () => {
-            if (document.visibilityState !== "visible") return;
-            // Small delay lets the browser resume the page fully first
-            setTimeout(recoverMedia, 250);
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "hidden") {
+                // Mark page as hidden so track-ended events don't fire recovery
+                // while the browser is allowed to suspend the tab
+                pageHiddenRef.current = true;
+                return;
+            }
+            // Page is now visible — clear hidden flag and immediately recover
+            pageHiddenRef.current = false;
+            recoverMedia();
         };
 
-        document.addEventListener("visibilitychange", handleVisibility);
-        window.addEventListener("focus", handleVisibility);
+        const handleFocus = () => {
+            pageHiddenRef.current = false;
+            recoverMedia();
+        };
+
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        window.addEventListener("focus", handleFocus);
         return () => {
-            document.removeEventListener("visibilitychange", handleVisibility);
-            window.removeEventListener("focus", handleVisibility);
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+            window.removeEventListener("focus", handleFocus);
         };
     }, [recoverMedia]);
 
     // ── Track-ended listeners ───────────────────────────────────────────
     // Detect when the browser kills a track (e.g. hardware error,
     // permission revocation) and recover immediately.
+    // NOTE: We skip recovery if the page is currently hidden — the browser
+    // will end tracks when backgrounded and we recover on visibility restore.
     useEffect(() => {
         const stream = localStreamRef.current;
         if (!stream) return;
 
         const onVideoEnded = () => {
+            if (pageHiddenRef.current) return; // Will be recovered on tab return
             console.log("[useWebRTC] Video track ended — triggering recovery");
-            setTimeout(recoverMedia, 100);
+            recoverMedia();
         };
         const onAudioEnded = () => {
+            if (pageHiddenRef.current) return; // Will be recovered on tab return
             console.log("[useWebRTC] Audio track ended — triggering recovery");
-            setTimeout(recoverMedia, 100);
+            recoverMedia();
         };
 
         const attachListeners = () => {

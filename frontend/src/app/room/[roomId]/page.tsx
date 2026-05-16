@@ -64,54 +64,12 @@ export default function RoomPage() {
         roomId as string, socketId, isMutedRef, isVideoOnRef
     );
 
-    // ── Sync UI state with actual track state on tab visibility change ──
-    // When the user switches tabs the browser may kill video tracks.
-    // recoverMedia (in useWebRTC) re-acquires them.  But we also need to
-    // make sure the React state in THIS component stays in sync so buttons
-    // reflect reality.  We read the track state after recovery settles.
-    useEffect(() => {
-        const syncStateOnFocus = async () => {
-            if (document.visibilityState !== "visible") return;
-
-            // Wait for recoverMedia in useWebRTC to finish first (it runs
-            // after 250ms).  We add a little extra buffer.
-            await new Promise(r => setTimeout(r, 400));
-
-            const stream = localStream;
-            if (!stream) return;
-
-            // Sync video state
-            const vTrack = stream.getVideoTracks()[0];
-            const actualVideoOn = !!(vTrack && vTrack.readyState === "live" && vTrack.enabled);
-
-            // Only update if out of sync — prevents unnecessary re-renders
-            if (actualVideoOn !== isVideoOnRef.current) {
-                setIsVideoOn(actualVideoOn);
-                if (socketId) {
-                    updateUser(socketId, { isVideoOn: actualVideoOn });
-                    if (socket) socket.emit("toggle-camera", { roomId, userId: socketId, isVideoOn: actualVideoOn });
-                }
-            }
-
-            // Sync audio state
-            const aTrack = stream.getAudioTracks()[0];
-            const actualMuted = !(aTrack && aTrack.readyState === "live" && aTrack.enabled);
-            if (actualMuted !== isMutedRef.current) {
-                setIsMuted(actualMuted);
-                if (socketId) {
-                    updateUser(socketId, { isMuted: actualMuted });
-                    if (socket) socket.emit("toggle-mic", { roomId, userId: socketId, isMuted: actualMuted });
-                }
-            }
-        };
-
-        document.addEventListener("visibilitychange", syncStateOnFocus);
-        window.addEventListener("focus", syncStateOnFocus);
-        return () => {
-            document.removeEventListener("visibilitychange", syncStateOnFocus);
-            window.removeEventListener("focus", syncStateOnFocus);
-        };
-    }, [localStream, socketId, socket, roomId, updateUser, recoverMedia]);
+    // ── No secondary sync needed ────────────────────────────────────────
+    // recoverMedia (in useWebRTC) handles all track recovery on tab return
+    // and pushes the confirmed state directly into the Zustand store.
+    // The UI (buttons + CameraGrid) reacts to the store, so no extra sync
+    // effect is needed here — a secondary handler would race recoverMedia
+    // and could falsely report the camera as "off" before recovery completes.
 
     // ── Set initial store state when we have a socket ID ──
     useEffect(() => {

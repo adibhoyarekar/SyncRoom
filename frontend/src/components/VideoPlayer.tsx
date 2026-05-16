@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import YouTube, { YouTubeProps, YouTubePlayer, YouTubeEvent } from "react-youtube";
 
 import { useRoomStore } from "@/store/useRoomStore";
@@ -18,6 +18,18 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
     const { users } = useRoomStore();
     const isOwner = users.find(u => u.id === socket?.id)?.isOwner ?? false;
 
+    // Debounce isOwner to prevent iframe remounts when socket reconnects
+    const [stableIsOwner, setStableIsOwner] = useState(isOwner);
+
+    useEffect(() => {
+        if (isOwner !== stableIsOwner) {
+            const timeout = setTimeout(() => {
+                setStableIsOwner(isOwner);
+            }, 1000);
+            return () => clearTimeout(timeout);
+        }
+    }, [isOwner, stableIsOwner]);
+
     const [url, setUrl] = useState("aqz-KE-bpKQ"); // YouTube Video ID
     const [isVideoType, setIsVideoType] = useState<"youtube" | "local">("youtube");
     const [localVideoUrl, setLocalVideoUrl] = useState("");
@@ -33,6 +45,8 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
     const [syncStatus, setSyncStatus] = useState<"synced" | "behind" | "unknown">("unknown");
     const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const ownerTimeRef = useRef<number | null>(null);
+    const lastOwnerUpdateRef = useRef<number>(Date.now());
+    const isPlayingRef = useRef<boolean>(false);
 
     // To prevent infinite loops when receiving socket events that trigger local events
     const isRemoteActionRef = useRef(false);
@@ -40,7 +54,11 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
     useEffect(() => {
         // Sync status tracking (non-owners check against owner's time)
         socket.on("video-play", ({ time }: { time?: number }) => {
-            if (typeof time === "number") ownerTimeRef.current = time;
+            if (typeof time === "number") {
+                ownerTimeRef.current = time;
+                lastOwnerUpdateRef.current = Date.now();
+            }
+            isPlayingRef.current = true;
             isRemoteActionRef.current = true;
             if (isVideoType === "youtube" && ytPlayerRef.current) {
                 if (typeof time === "number") {
@@ -57,7 +75,11 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
         });
 
         socket.on("video-pause", ({ time }: { time?: number }) => {
-            if (typeof time === "number") ownerTimeRef.current = time;
+            if (typeof time === "number") {
+                ownerTimeRef.current = time;
+                lastOwnerUpdateRef.current = Date.now();
+            }
+            isPlayingRef.current = false;
             isRemoteActionRef.current = true;
             if (isVideoType === "youtube" && ytPlayerRef.current) {
                 ytPlayerRef.current.pauseVideo();
@@ -75,6 +97,7 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
 
         socket.on("video-seek", ({ time }: { time: number }) => {
             ownerTimeRef.current = time;
+            lastOwnerUpdateRef.current = Date.now();
             isRemoteActionRef.current = true;
             if (isVideoType === "youtube" && ytPlayerRef.current) {
                 ytPlayerRef.current.seekTo(time, true);
@@ -108,15 +131,30 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
     };
 
     const handlePlay = () => {
-        if (!isOwner) return;
-        if (isRemoteActionRef.current) return;
-        const time = isVideoType === "youtube" ? ytPlayerRef.current?.getCurrentTime() : nativeVideoRef.current?.currentTime;
-        socket.volatile.emit("video-play", { roomId, time });
-    };
+            if (!isOwner) return;
+            if (isRemoteActionRef.current) return;
+            isPlayingRef.current = true;
+            const time = isVideoType === "youtube" ? ytPlayerRef.current?.getCurrentTime() : nativeVideoRef.current?.currentTime;
+            socket.volatile.emit("video-play", { roomId, time });
+        };
 
     const handlePause = () => {
         if (!isOwner) return;
         if (isRemoteActionRef.current) return;
+
+        // If the browser forces a pause due to tab backgrounding, ignore it 
+        // so we don't pause the video for everyone in the room!
+        if (document.visibilityState === "hidden") {
+            // Attempt to keep it playing locally
+            if (isVideoType === "youtube" && ytPlayerRef.current) {
+                ytPlayerRef.current.playVideo();
+            } else if (isVideoType === "local" && nativeVideoRef.current) {
+                nativeVideoRef.current.play().catch(() => {});
+            }
+            return;
+        }
+
+        isPlayingRef.current = false;
         const time = isVideoType === "youtube" ? ytPlayerRef.current?.getCurrentTime() : nativeVideoRef.current?.currentTime;
         socket.volatile.emit("video-pause", { roomId, time });
     };
@@ -184,7 +222,12 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
             } else if (isVideoType === "local" && nativeVideoRef.current) {
                 currentTime = nativeVideoRef.current.currentTime || 0;
             }
-            const diff = Math.abs(currentTime - (ownerTimeRef.current || 0));
+            
+            // Calculate expected owner time based on elapsed wall-clock time
+            const elapsedSinceUpdate = isPlayingRef.current ? (Date.now() - lastOwnerUpdateRef.current) / 1000 : 0;
+            const expectedOwnerTime = (ownerTimeRef.current || 0) + elapsedSinceUpdate;
+            
+            const diff = Math.abs(currentTime - expectedOwnerTime);
             setSyncStatus(diff < 2 ? "synced" : "behind");
         }, 3000);
 
@@ -193,16 +236,16 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
         };
     }, [isOwner, isVideoType]);
 
-    const opts: YouTubeProps['opts'] = {
+    const opts: YouTubeProps['opts'] = useMemo(() => ({
         height: '100%',
         width: '100%',
         playerVars: {
             autoplay: 0, 
-            controls: isOwner ? 1 : 0, // Hide YouTube controls for non-owners
-            disablekb: isOwner ? 0 : 1, // Disable keyboard for non-owners
+            controls: stableIsOwner ? 1 : 0, // Hide YouTube controls for non-owners
+            disablekb: stableIsOwner ? 0 : 1, // Disable keyboard for non-owners
             rel: 0,
         },
-    };
+    }), [stableIsOwner]);
 
     return (
         <div className="flex flex-col h-full">
