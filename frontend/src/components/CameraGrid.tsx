@@ -147,8 +147,8 @@ export default function CameraGrid({ currentUserId }: { currentUserId: string })
                                 </div>
                             )}
                             {!user.isVideoOn && (
-                                <div className="bg-zinc-700/80 p-0.5 rounded">
-                                    <VideoOff size={8} className="text-zinc-300" />
+                                <div className="bg-red-500/80 p-0.5 rounded">
+                                    <VideoOff size={8} className="text-white" />
                                 </div>
                             )}
                         </div>
