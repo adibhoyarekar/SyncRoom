@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Play, Upload, PictureInPicture2, Check, AlertTriangle, Maximize, X } from "lucide-react";
 import ChatPanel from "@/components/ChatPanel";
+import EmojiReactions from "@/components/EmojiReactions";
 
 interface VideoPlayerProps {
     socket: Socket;
@@ -359,6 +360,13 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
                     <Maximize size={14} />
                     {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
                 </button>
+
+                {/* Fullscreen Emoji Reactions */}
+                {isFullscreen && (
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto bg-zinc-900/80 backdrop-blur-md px-4 py-2 rounded-2xl border border-zinc-700/50 shadow-lg">
+                        <EmojiReactions socket={socket} roomId={roomId} />
+                    </div>
+                )}
 
                 {/* Floating Chat Overlay (Fullscreen Only) */}
                 {isFullscreen && isChatVisible && (
