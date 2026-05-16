@@ -137,11 +137,7 @@ export default function RoomPage() {
         });
         setSocket(newSocket);
 
-        let disconnectTimer: NodeJS.Timeout | null = null;
-
         newSocket.on("connect", () => {
-            if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
-            setIsDisconnected(false);
             if (newSocket.id) {
                 setSocketId(newSocket.id);
                 newSocket.emit("join-room", {
@@ -198,18 +194,14 @@ export default function RoomPage() {
             setRoomName(name);
         });
 
-        // Auto-reconnect events — only show overlay if disconnected for 3+ seconds
-        // (tab switches cause brief disconnects that should be invisible)
-
+        // Auto-reconnect — re-join room after socket reconnects
         newSocket.on("disconnect", () => {
-            disconnectTimer = setTimeout(() => {
-                setIsDisconnected(true);
-            }, 3000);
+            // Socket disconnects are normal during tab switches;
+            // the "Connection Lost" overlay is driven by navigator.onLine
+            // (see the useEffect below), NOT by socket events.
         });
 
         newSocket.on("reconnect", () => {
-            if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
-            setIsDisconnected(false);
             // Re-join room after reconnect
             if (newSocket.id) {
                 newSocket.emit("join-room", {
@@ -278,6 +270,24 @@ export default function RoomPage() {
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roomId, session, status, router]);
+
+    // ── Network-based disconnect detection ───────────────────────────────
+    // Only show the "Connection Lost" overlay when the actual WiFi/internet
+    // goes offline — NOT on brief socket reconnects from tab switching.
+    useEffect(() => {
+        const goOffline = () => setIsDisconnected(true);
+        const goOnline = () => setIsDisconnected(false);
+
+        // Sync initial state
+        setIsDisconnected(!navigator.onLine);
+
+        window.addEventListener("offline", goOffline);
+        window.addEventListener("online", goOnline);
+        return () => {
+            window.removeEventListener("offline", goOffline);
+            window.removeEventListener("online", goOnline);
+        };
+    }, []);
 
     // ── Stabilized toggle handlers (no re-creation on each render) ──────
     const toggleMic = useCallback(() => {
