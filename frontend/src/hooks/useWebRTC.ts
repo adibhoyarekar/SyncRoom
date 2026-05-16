@@ -26,11 +26,16 @@ export function useWebRTC(
     const callsRef = useRef<{ [id: string]: MediaConnection }>({});
     const localStreamRef = useRef<MediaStream | null>(null);
     const isRecoveringRef = useRef(false);
+    const userIdRef = useRef(userId);
 
-    // Keep ref in sync with state
+    // Keep refs in sync
     useEffect(() => {
         localStreamRef.current = localStream;
     }, [localStream]);
+
+    useEffect(() => {
+        userIdRef.current = userId;
+    }, [userId]);
 
     // Update global store with local stream when it changes
     useEffect(() => {
@@ -107,6 +112,10 @@ export function useWebRTC(
     // ── Unified media recovery ──────────────────────────────────────────
     // Single recovery function used by both visibility-change and
     // track-ended handlers.  Serialized via isRecoveringRef.
+    //
+    // CRITICAL: After recovering tracks this function pushes the updated
+    // stream reference + media-state flags into the Zustand store so that
+    // CameraGrid and other UI components re-render with fresh data.
     const recoverMedia = useCallback(async () => {
         if (isRecoveringRef.current) return;
         isRecoveringRef.current = true;
@@ -131,7 +140,7 @@ export function useWebRTC(
             }
 
             // ── Audio ──
-            const wantAudio = !(isMutedRef?.current ?? false);
+            const wantAudio = !(isMutedRef?.current ?? true);
             const aTrack = stream.getAudioTracks()[0];
 
             if (!aTrack || aTrack.readyState === "ended") {
@@ -140,10 +149,22 @@ export function useWebRTC(
             } else {
                 aTrack.enabled = wantAudio;
             }
+
+            // ── Push updated state into Zustand store ──
+            // This forces CameraGrid to re-render with the live stream and
+            // correct isVideoOn / isMuted values, preventing UI desync.
+            const uid = userIdRef.current;
+            if (uid) {
+                updateUser(uid, {
+                    stream: stream,
+                    isVideoOn: wantVideo,
+                    isMuted: !wantAudio,
+                });
+            }
         } finally {
             isRecoveringRef.current = false;
         }
-    }, [ensureVideoTrack, ensureAudioTrack, isMutedRef, isVideoOnRef]);
+    }, [ensureVideoTrack, ensureAudioTrack, isMutedRef, isVideoOnRef, updateUser]);
 
     // ── Visibility-change recovery ──────────────────────────────────────
     useEffect(() => {
@@ -225,10 +246,13 @@ export function useWebRTC(
         };
 
         // Request both audio + video upfront so PeerJS has tracks to share.
-        // Video track is disabled by default — user toggles it on explicitly.
+        // BOTH video and audio tracks are disabled by default —
+        // video: user toggles it on explicitly
+        // audio: mic starts muted for better UX
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
             .then((stream) => {
                 stream.getVideoTracks().forEach(t => t.enabled = false);
+                stream.getAudioTracks().forEach(t => t.enabled = false);
                 setLocalStream(stream);
                 localStreamRef.current = stream;
                 setupCallHandler(stream);
@@ -237,6 +261,7 @@ export function useWebRTC(
                 console.warn("getUserMedia (video+audio) failed, trying audio-only:", err);
                 navigator.mediaDevices.getUserMedia({ audio: true })
                     .then((audioStream) => {
+                        audioStream.getAudioTracks().forEach(t => t.enabled = false);
                         setLocalStream(audioStream);
                         localStreamRef.current = audioStream;
                         setupCallHandler(audioStream);
@@ -326,5 +351,5 @@ export function useWebRTC(
         }
     };
 
-    return { localStream, remoteStreams, toggleScreenShare, ensureVideoTrack };
+    return { localStream, remoteStreams, toggleScreenShare, ensureVideoTrack, recoverMedia };
 }

@@ -132,8 +132,10 @@ export default function CameraGrid({ currentUserId }: { currentUserId: string })
                             </div>
                         </div>
 
-                        {/* Persistent audio for remote users */}
-                        {!isLocal && user.stream && !user.isMuted && (
+                        {/* Persistent audio for remote users — always mounted.
+                            Muting is controlled at the track level (track.enabled),
+                            not by unmounting the audio element. */}
+                        {!isLocal && user.stream && (
                             <AudioTile stream={user.stream} />
                         )}
 

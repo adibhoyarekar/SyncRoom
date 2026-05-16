@@ -35,7 +35,7 @@ export default function RoomPage() {
     const [socketId, setSocketId] = useState<string>("");
 
     // Local Media State
-    const [isMuted, setIsMuted] = useState(false);
+    const [isMuted, setIsMuted] = useState(true);
     const [isVideoOn, setIsVideoOn] = useState(false);
     const [isScreenSharing, setIsScreenSharing] = useState(false);
     const [copied, setCopied] = useState(false);
@@ -60,9 +60,65 @@ export default function RoomPage() {
 
     // Start WebRTC connection — pass state refs so recovery restores correct state
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { localStream, toggleScreenShare, ensureVideoTrack } = useWebRTC(
+    const { localStream, toggleScreenShare, ensureVideoTrack, recoverMedia } = useWebRTC(
         roomId as string, socketId, isMutedRef, isVideoOnRef
     );
+
+    // ── Sync UI state with actual track state on tab visibility change ──
+    // When the user switches tabs the browser may kill video tracks.
+    // recoverMedia (in useWebRTC) re-acquires them.  But we also need to
+    // make sure the React state in THIS component stays in sync so buttons
+    // reflect reality.  We read the track state after recovery settles.
+    useEffect(() => {
+        const syncStateOnFocus = async () => {
+            if (document.visibilityState !== "visible") return;
+
+            // Wait for recoverMedia in useWebRTC to finish first (it runs
+            // after 250ms).  We add a little extra buffer.
+            await new Promise(r => setTimeout(r, 400));
+
+            const stream = localStream;
+            if (!stream) return;
+
+            // Sync video state
+            const vTrack = stream.getVideoTracks()[0];
+            const actualVideoOn = !!(vTrack && vTrack.readyState === "live" && vTrack.enabled);
+
+            // Only update if out of sync — prevents unnecessary re-renders
+            if (actualVideoOn !== isVideoOnRef.current) {
+                setIsVideoOn(actualVideoOn);
+                if (socketId) {
+                    updateUser(socketId, { isVideoOn: actualVideoOn });
+                    if (socket) socket.emit("toggle-camera", { roomId, userId: socketId, isVideoOn: actualVideoOn });
+                }
+            }
+
+            // Sync audio state
+            const aTrack = stream.getAudioTracks()[0];
+            const actualMuted = !(aTrack && aTrack.readyState === "live" && aTrack.enabled);
+            if (actualMuted !== isMutedRef.current) {
+                setIsMuted(actualMuted);
+                if (socketId) {
+                    updateUser(socketId, { isMuted: actualMuted });
+                    if (socket) socket.emit("toggle-mic", { roomId, userId: socketId, isMuted: actualMuted });
+                }
+            }
+        };
+
+        document.addEventListener("visibilitychange", syncStateOnFocus);
+        window.addEventListener("focus", syncStateOnFocus);
+        return () => {
+            document.removeEventListener("visibilitychange", syncStateOnFocus);
+            window.removeEventListener("focus", syncStateOnFocus);
+        };
+    }, [localStream, socketId, socket, roomId, updateUser, recoverMedia]);
+
+    // ── Set initial store state when we have a socket ID ──
+    useEffect(() => {
+        if (socketId) {
+            updateUser(socketId, { isMuted: true, isVideoOn: false });
+        }
+    }, [socketId, updateUser]);
 
     useEffect(() => {
         if (status === "unauthenticated") {
@@ -93,7 +149,7 @@ export default function RoomPage() {
                     user: {
                         name: session?.user?.name || "Guest",
                         image: session?.user?.image || "",
-                        isMuted: false,
+                        isMuted: true,
                         isVideoOn: false,
                     }
                 });
