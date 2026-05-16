@@ -24,7 +24,7 @@ function VideoTile({ stream, isLocal, isVideoOn }: { stream: MediaStream | undef
             }
             try {
                 await video.play();
-            } catch (err) {
+            } catch {
                 // Ignore autoplay policy errors safely
             }
         };
@@ -76,7 +76,7 @@ function AudioTile({ stream }: { stream: MediaStream }) {
             if (audio.paused) {
                 try {
                     await audio.play();
-                } catch (err) {
+                } catch {
                     // Ignore autoplay policy errors safely
                 }
             }
