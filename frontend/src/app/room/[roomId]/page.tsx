@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { io, Socket } from "socket.io-client";
 import { useRoomStore } from "@/store/useRoomStore";
 import { Button } from "@/components/ui/button";
-import { LogOut, Mic, MicOff, Video, VideoOff, MonitorUp, Users as UsersIcon, MessageSquare, Copy, Check, Play, Share2, Link2, WifiOff } from "lucide-react";
+import { LogOut, Mic, MicOff, Video, VideoOff, MonitorUp, Users as UsersIcon, MessageSquare, Copy, Check, Play, Share2, Link2, WifiOff, Settings } from "lucide-react";
 import EmojiReactions from "@/components/EmojiReactions";
 import {
     Dialog,
@@ -23,6 +23,8 @@ import { useWebRTC } from "@/hooks/useWebRTC";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import RoomTour from "@/components/RoomTour";
+import { useSettingsStore } from "@/store/useSettingsStore";
+import SettingsModal from "@/components/SettingsModal";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000";
 
@@ -42,6 +44,7 @@ export default function RoomPage() {
     const [showShareDialog, setShowShareDialog] = useState(false);
     const [copiedLink, setCopiedLink] = useState(false);
     const [showRoomBanner, setShowRoomBanner] = useState(true);
+    const [showSettingsModal, setShowSettingsModal] = useState(false);
     const isTogglingCamera = useRef(false);
     const [roomName, setRoomName] = useState("");
     const [isDisconnected, setIsDisconnected] = useState(false);
@@ -50,6 +53,7 @@ export default function RoomPage() {
     const [showSidebar, setShowSidebar] = useState<"chat" | "participants" | null>("chat");
 
     const { setUsers, addUser, removeUser, addMessage, updateUser } = useRoomStore();
+    const { shortcuts } = useSettingsStore();
 
     // Refs to hold the latest toggle state so the WebRTC hook's recovery
     // handler can read them without creating new listener registrations.
@@ -310,36 +314,33 @@ export default function RoomPage() {
             const target = e.target as HTMLElement;
             if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
 
-            switch (e.key.toLowerCase()) {
-                case "m":
+            const key = e.code === "Space" ? "space" : e.key.toLowerCase();
+
+            if (key === shortcuts.mute) {
+                e.preventDefault();
+                toggleMic();
+            } else if (key === shortcuts.camera) {
+                e.preventDefault();
+                toggleCamera();
+            } else if (key === shortcuts.fullscreen) {
+                if (!e.ctrlKey && !e.metaKey) {
                     e.preventDefault();
-                    toggleMic();
-                    break;
-                case "v":
-                    e.preventDefault();
-                    toggleCamera();
-                    break;
-                case "f":
-                    if (!e.ctrlKey && !e.metaKey) {
-                        e.preventDefault();
-                        if (document.fullscreenElement) {
-                            document.exitFullscreen();
-                        } else {
-                            document.getElementById("syncroom-video-wrapper")?.requestFullscreen();
-                        }
-                    }
-                    break;
-                case "escape":
                     if (document.fullscreenElement) {
                         document.exitFullscreen();
+                    } else {
+                        document.getElementById("syncroom-video-wrapper")?.requestFullscreen();
                     }
-                    break;
+                }
+            } else if (key === "escape") {
+                if (document.fullscreenElement) {
+                    document.exitFullscreen();
+                }
             }
         };
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [toggleMic, toggleCamera]);
+    }, [toggleMic, toggleCamera, shortcuts]);
 
     const copyRoomId = useCallback(() => {
         navigator.clipboard.writeText(roomId as string);
@@ -397,6 +398,16 @@ export default function RoomPage() {
                         >
                             <MessageSquare size={16} />
                             <span className="hidden sm:inline text-xs">Chat</span>
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-9 px-3 gap-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800/50 transition-all"
+                            onClick={() => setShowSettingsModal(true)}
+                            title="Settings"
+                        >
+                            <Settings size={16} />
+                            <span className="hidden sm:inline text-xs">Settings</span>
                         </Button>
                         <div className="w-px h-6 bg-zinc-800 mx-1" />
                         <Button
@@ -509,10 +520,23 @@ export default function RoomPage() {
                     )}
 
                     {/* ── Keyboard Shortcuts Hint ─────────────────────── */}
-                    <div className="mt-1 flex justify-center">
-                        <p className="text-[9px] text-zinc-600 tracking-wide">
-                            M mute · V camera · F fullscreen
-                        </p>
+                    <div className="mt-3 mb-1 flex justify-center gap-6">
+                        <div className="flex items-center gap-2">
+                            <kbd className="px-2 py-1 bg-zinc-800 border border-zinc-700/50 rounded-md text-[10px] font-mono text-zinc-300 shadow-sm uppercase min-w-[24px] text-center">{shortcuts.mute}</kbd>
+                            <span className="text-[11px] text-zinc-500 font-medium">Mute</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <kbd className="px-2 py-1 bg-zinc-800 border border-zinc-700/50 rounded-md text-[10px] font-mono text-zinc-300 shadow-sm uppercase min-w-[24px] text-center">{shortcuts.camera}</kbd>
+                            <span className="text-[11px] text-zinc-500 font-medium">Camera</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <kbd className="px-2 py-1 bg-zinc-800 border border-zinc-700/50 rounded-md text-[10px] font-mono text-zinc-300 shadow-sm uppercase min-w-[24px] text-center">{shortcuts.fullscreen}</kbd>
+                            <span className="text-[11px] text-zinc-500 font-medium">Fullscreen</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <kbd className="px-2 py-1 bg-zinc-800 border border-zinc-700/50 rounded-md text-[10px] font-mono text-zinc-300 shadow-sm uppercase min-w-[24px] text-center">{shortcuts.chat}</kbd>
+                            <span className="text-[11px] text-zinc-500 font-medium">Toggle Chat</span>
+                        </div>
                     </div>
                 </main>
 
@@ -610,6 +634,9 @@ export default function RoomPage() {
                     </div>
                 </div>
             )}
+            
+            {/* Settings Modal */}
+            <SettingsModal open={showSettingsModal} onOpenChange={setShowSettingsModal} />
         </div>
     );
 }

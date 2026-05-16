@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Play, Upload, PictureInPicture2, Check, AlertTriangle, Maximize, X } from "lucide-react";
 import ChatPanel from "@/components/ChatPanel";
 import EmojiReactions from "@/components/EmojiReactions";
+import { useSettingsStore } from "@/store/useSettingsStore";
 
 interface VideoPlayerProps {
     socket: Socket;
@@ -48,6 +49,7 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isChatVisible, setIsChatVisible] = useState(true);
     const [chatOpacity, setChatOpacity] = useState(0.8);
+    const { shortcuts } = useSettingsStore();
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -74,14 +76,16 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
             const target = e.target as HTMLElement;
             if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
 
-            if (e.key.toLowerCase() === "c") {
+            const key = e.code === "Space" ? "space" : e.key.toLowerCase();
+
+            if (key === shortcuts.chat) {
                 e.preventDefault();
                 setIsChatVisible(prev => !prev);
             }
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [isFullscreen]);
+    }, [isFullscreen, shortcuts]);
 
     // Sync status
     const [syncStatus, setSyncStatus] = useState<"synced" | "behind" | "unknown">("unknown");
@@ -363,8 +367,12 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
 
                 {/* Fullscreen Emoji Reactions */}
                 {isFullscreen && (
-                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto bg-zinc-900/80 backdrop-blur-md px-4 py-2 rounded-2xl border border-zinc-700/50 shadow-lg">
-                        <EmojiReactions socket={socket} roomId={roomId} />
+                    <div className="absolute bottom-4 inset-x-0 flex justify-center z-20 pointer-events-none">
+                        <EmojiReactions 
+                            socket={socket} 
+                            roomId={roomId} 
+                            containerClassName="pointer-events-auto bg-zinc-900/80 backdrop-blur-md px-4 py-2 rounded-2xl border border-zinc-700/50 shadow-lg" 
+                        />
                     </div>
                 )}
 

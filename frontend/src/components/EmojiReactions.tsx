@@ -16,9 +16,10 @@ interface FloatingEmoji {
 interface EmojiReactionsProps {
     socket: Socket;
     roomId: string;
+    containerClassName?: string;
 }
 
-export default function EmojiReactions({ socket, roomId }: EmojiReactionsProps) {
+export default function EmojiReactions({ socket, roomId, containerClassName }: EmojiReactionsProps) {
     const { data: session } = useSession();
     const [floatingEmojis, setFloatingEmojis] = useState<FloatingEmoji[]>([]);
 
@@ -69,7 +70,7 @@ export default function EmojiReactions({ socket, roomId }: EmojiReactionsProps) 
             </div>
 
             {/* Quick reaction bar */}
-            <div className="flex items-center gap-1">
+            <div className={`flex items-center gap-1 ${containerClassName || ""}`}>
                 {QUICK_EMOJIS.map((emoji) => (
                     <button
                         key={emoji}
