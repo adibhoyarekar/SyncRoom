@@ -60,7 +60,7 @@ export default function RoomPage() {
 
     // Start WebRTC connection — pass state refs so recovery restores correct state
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { localStream, toggleScreenShare, ensureVideoTrack, recoverMedia } = useWebRTC(
+    const { localStream, toggleScreenShare, ensureVideoTrack } = useWebRTC(
         roomId as string, socketId, isMutedRef, isVideoOnRef
     );
 
