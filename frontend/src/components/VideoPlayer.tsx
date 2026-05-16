@@ -7,7 +7,7 @@ import { useRoomStore } from "@/store/useRoomStore";
 import { Socket } from "socket.io-client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Play, Upload, PictureInPicture2, Check, AlertTriangle, Maximize, X } from "lucide-react";
+import { Play, Upload, PictureInPicture2, Check, AlertTriangle, Maximize, X, ListPlus, Trash2, ListVideo } from "lucide-react";
 import ChatPanel from "@/components/ChatPanel";
 import EmojiReactions from "@/components/EmojiReactions";
 import { useSettingsStore } from "@/store/useSettingsStore";
@@ -18,7 +18,7 @@ interface VideoPlayerProps {
 }
 
 export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
-    const { users } = useRoomStore();
+    const { users, videoQueue } = useRoomStore();
     const isOwner = users.find(u => u.id === socket?.id)?.isOwner ?? false;
 
     // Debounce isOwner to prevent iframe remounts when socket reconnects
@@ -40,6 +40,7 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
     const ytPlayerRef = useRef<YouTubePlayer | null>(null);
     const nativeVideoRef = useRef<HTMLVideoElement | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [showQueuePanel, setShowQueuePanel] = useState(false);
 
     // PiP state
     const [isPiP, setIsPiP] = useState(false);
@@ -224,6 +225,28 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
         }
     };
 
+    const handleAddToQueue = () => {
+        const videoId = extractYouTubeId(inputUrl);
+        if (videoId) {
+            socket.emit("add-to-queue", { roomId, videoUrl: inputUrl });
+            setInputUrl("");
+        } else {
+            alert("Invalid YouTube URL");
+        }
+    };
+
+    const handleRemoveFromQueue = (index: number) => {
+        if (!isOwner) return;
+        socket.emit("remove-from-queue", { roomId, index });
+    };
+
+    const handleEnd = () => {
+        if (!isOwner) return;
+        if (videoQueue.length > 0) {
+            socket.emit("play-next", { roomId });
+        }
+    };
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!isOwner) return;
         const file = e.target.files?.[0];
@@ -296,27 +319,54 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
 
     return (
         <div className="flex flex-col h-full">
-            {/* Top control bar — only visible to owners */}
-            {isOwner && (
-                <div className="shrink-0 bg-zinc-900 border-b border-zinc-800 px-3 py-2 flex gap-2 items-center">
+            {/* Top control bar — visible to everyone for queueing */}
+            <div className="shrink-0 bg-zinc-900 border-b border-zinc-800 px-3 py-2 flex gap-2 items-center">
                 <form onSubmit={loadVideo} className="flex-1 flex gap-2">
                     <Input
                         value={inputUrl}
                         onChange={(e) => setInputUrl(e.target.value)}
-                        placeholder="Paste YouTube URL to sync video for whole room..."
+                        placeholder="Paste YouTube URL here..."
                         className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 text-sm h-9"
                     />
-                    <Button type="submit" size="sm" className="bg-indigo-600 hover:bg-indigo-500 text-white shrink-0 h-9">
-                        <Play size={14} className="mr-1.5" /> Play URL
+                    {isOwner && (
+                        <>
+                            <Button type="submit" size="sm" className="bg-indigo-600 hover:bg-indigo-500 text-white shrink-0 h-9">
+                                <Play size={14} className="mr-1.5" /> Play Now
+                            </Button>
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="border-zinc-600 text-zinc-300 hover:bg-zinc-700 shrink-0 h-9"
+                            >
+                                <Upload size={14} className="mr-1.5" /> Local File
+                            </Button>
+                        </>
+                    )}
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={handleAddToQueue}
+                        className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 shrink-0 h-9"
+                    >
+                        <ListPlus size={14} className="mr-1.5" /> Add to Queue
                     </Button>
                     <Button
                         type="button"
                         size="sm"
-                        variant="outline"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="border-zinc-600 text-zinc-300 hover:bg-zinc-700 shrink-0 h-9"
+                        variant="ghost"
+                        onClick={() => setShowQueuePanel(!showQueuePanel)}
+                        className={`shrink-0 h-9 transition-colors ${showQueuePanel || videoQueue.length > 0 ? "text-indigo-400 bg-indigo-500/10" : "text-zinc-400"}`}
                     >
-                        <Upload size={14} className="mr-1.5" /> Local File
+                        <ListVideo size={14} className="mr-1.5" />
+                        Up Next
+                        {videoQueue.length > 0 && (
+                            <span className="ml-1.5 bg-indigo-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                                {videoQueue.length}
+                            </span>
+                        )}
                     </Button>
                     <input
                         type="file"
@@ -327,7 +377,6 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
                     />
                 </form>
             </div>
-            )}
 
             {/* Player Wrapper */}
             <div ref={wrapperRef} id="syncroom-video-wrapper" className={`flex-1 w-full bg-black relative flex items-center justify-center tour-video-player ${!isOwner ? 'pointer-events-none' : ''}`}>
@@ -409,6 +458,48 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
                     </div>
                 )}
 
+                {/* Video Queue Panel */}
+                {showQueuePanel && (
+                    <div className="absolute top-4 right-4 w-72 max-h-[80%] bg-zinc-900/95 backdrop-blur-md border border-zinc-700 rounded-xl shadow-2xl flex flex-col z-40 overflow-hidden">
+                        <div className="bg-zinc-800/50 px-4 py-3 border-b border-zinc-700 flex items-center justify-between">
+                            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                                <ListVideo size={16} className="text-indigo-400" />
+                                Up Next
+                            </h3>
+                            <button onClick={() => setShowQueuePanel(false)} className="text-zinc-400 hover:text-white">
+                                <X size={14} />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-2">
+                            {videoQueue.length === 0 ? (
+                                <p className="text-xs text-zinc-500 text-center py-6">The queue is empty.<br/>Paste a YouTube link above to add one!</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {videoQueue.map((vUrl, idx) => (
+                                        <div key={idx} className="flex items-center justify-between bg-zinc-800/30 border border-zinc-700/50 p-2 rounded-lg group">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <span className="text-xs font-bold text-zinc-500 w-4">{idx + 1}</span>
+                                                <div className="text-xs text-zinc-300 truncate">
+                                                    {extractYouTubeId(vUrl) || "Unknown Video"}
+                                                </div>
+                                            </div>
+                                            {isOwner && (
+                                                <button
+                                                    onClick={() => handleRemoveFromQueue(idx)}
+                                                    className="opacity-0 group-hover:opacity-100 p-1.5 text-red-400 hover:bg-red-500/20 rounded transition-all"
+                                                    title="Remove from queue"
+                                                >
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {isVideoType === "youtube" ? (
                     <YouTube
                         videoId={url}
@@ -416,6 +507,7 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
                         onReady={(e: YouTubeEvent) => ytPlayerRef.current = e.target}
                         onPlay={handlePlay}
                         onPause={handlePause}
+                        onEnd={handleEnd}
                         className="absolute inset-0 w-full h-full pointer-events-auto"
                         iframeClassName="w-full h-full"
                     />
@@ -428,6 +520,7 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
                         onPlay={handlePlay}
                         onPause={handlePause}
                         onSeeked={(e) => handleSeek((e.target as HTMLVideoElement).currentTime)}
+                        onEnded={handleEnd}
                     />
                 )}
             </div>

@@ -52,7 +52,7 @@ export default function RoomPage() {
     // UI Toggles
     const [showSidebar, setShowSidebar] = useState<"chat" | "participants" | null>("chat");
 
-    const { setUsers, addUser, removeUser, addMessage, updateUser } = useRoomStore();
+    const { setUsers, addUser, removeUser, addMessage, updateUser, setVideoQueue } = useRoomStore();
     const { shortcuts } = useSettingsStore();
 
     // Refs to hold the latest toggle state so the WebRTC hook's recovery
@@ -154,6 +154,11 @@ export default function RoomPage() {
         // Room name changes
         newSocket.on("room-name-changed", ({ name }: { name: string }) => {
             setRoomName(name);
+        });
+
+        // Video Queue sync
+        newSocket.on("queue-updated", ({ queue }: { queue: string[] }) => {
+            setVideoQueue(queue);
         });
 
         // Auto-reconnect — re-join room after socket reconnects

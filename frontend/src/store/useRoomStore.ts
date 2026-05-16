@@ -28,6 +28,8 @@ interface RoomState {
     removeUser: (socketId: string) => void;
     updateUser: (socketId: string, updates: Partial<User>) => void;
     addMessage: (message: Message) => void;
+    videoQueue: string[];
+    setVideoQueue: (queue: string[]) => void;
 }
 
 export const useRoomStore = create<RoomState>((set) => ({
@@ -40,4 +42,6 @@ export const useRoomStore = create<RoomState>((set) => ({
         users: state.users.map(u => u.id === socketId ? { ...u, ...updates } : u)
     })),
     addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
+    videoQueue: [],
+    setVideoQueue: (queue) => set({ videoQueue: queue }),
 }));

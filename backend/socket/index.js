@@ -1,5 +1,6 @@
 export default function initSocket(io) {
     const rooms = new Map(); // roomId -> Set of { socketId, user }
+    const roomQueues = new Map(); // roomId -> Array of video URLs
 
     io.on('connection', (socket) => {
         console.log('User connected:', socket.id);
@@ -30,6 +31,9 @@ export default function initSocket(io) {
             // Send current users to the new user
             const usersInRoom = Array.from(roomUsers.entries()).map(([id, u]) => ({ socketId: id, user: u }));
             socket.emit('room-users', usersInRoom);
+
+            // Send current queue
+            socket.emit('queue-updated', { queue: roomQueues.get(roomId) || [] });
         });
 
         // Helper to check ownership
@@ -69,6 +73,39 @@ export default function initSocket(io) {
         socket.on('video-url-change', ({ roomId, newUrl }) => {
             if (isUserOwner(roomId, socket.id)) {
                 socket.to(roomId).emit('video-url-change', { newUrl });
+            }
+        });
+
+        // Video Queue
+        socket.on('add-to-queue', ({ roomId, videoUrl }) => {
+            if (!roomQueues.has(roomId)) {
+                roomQueues.set(roomId, []);
+            }
+            const queue = roomQueues.get(roomId);
+            queue.push(videoUrl);
+            io.to(roomId).emit('queue-updated', { queue });
+        });
+
+        socket.on('remove-from-queue', ({ roomId, index }) => {
+            if (isUserOwner(roomId, socket.id)) {
+                const queue = roomQueues.get(roomId);
+                if (queue && index >= 0 && index < queue.length) {
+                    queue.splice(index, 1);
+                    io.to(roomId).emit('queue-updated', { queue });
+                }
+            }
+        });
+
+        socket.on('play-next', ({ roomId }) => {
+            if (isUserOwner(roomId, socket.id)) {
+                const queue = roomQueues.get(roomId);
+                if (queue && queue.length > 0) {
+                    const nextUrl = queue.shift();
+                    // Emit video-url-change to EVERYONE, including the owner who requested it,
+                    // so the owner's UI updates automatically.
+                    io.to(roomId).emit('video-url-change', { newUrl: nextUrl });
+                    io.to(roomId).emit('queue-updated', { queue });
+                }
             }
         });
 
@@ -203,6 +240,7 @@ export default function initSocket(io) {
 
                     if (roomUsers.size === 0) {
                         rooms.delete(roomId);
+                        roomQueues.delete(roomId);
                     } else if (wasPrimaryOwner) {
                         // If primary owner leaves, pass it to someone else (first available)
                         const nextPrimaryId = Array.from(roomUsers.keys())[0];
