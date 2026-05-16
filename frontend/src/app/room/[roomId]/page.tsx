@@ -325,7 +325,7 @@ export default function RoomPage() {
                         if (document.fullscreenElement) {
                             document.exitFullscreen();
                         } else {
-                            document.documentElement.requestFullscreen();
+                            document.getElementById("syncroom-video-wrapper")?.requestFullscreen();
                         }
                     }
                     break;

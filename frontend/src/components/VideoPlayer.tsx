@@ -7,7 +7,8 @@ import { useRoomStore } from "@/store/useRoomStore";
 import { Socket } from "socket.io-client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Play, Upload, PictureInPicture2, Check, AlertTriangle } from "lucide-react";
+import { Play, Upload, PictureInPicture2, Check, AlertTriangle, Maximize, X } from "lucide-react";
+import ChatPanel from "@/components/ChatPanel";
 
 interface VideoPlayerProps {
     socket: Socket;
@@ -40,6 +41,46 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
 
     // PiP state
     const [isPiP, setIsPiP] = useState(false);
+
+    // Fullscreen & Floating Chat state
+    const wrapperRef = useRef<HTMLDivElement>(null);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isChatVisible, setIsChatVisible] = useState(true);
+    const [chatOpacity, setChatOpacity] = useState(0.8);
+
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            const isFs = !!document.fullscreenElement && document.fullscreenElement === wrapperRef.current;
+            setIsFullscreen(isFs);
+            if (isFs) setIsChatVisible(true); // reset visibility when entering fullscreen
+        };
+        document.addEventListener("fullscreenchange", handleFullscreenChange);
+        return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    }, []);
+
+    const toggleFullscreen = async () => {
+        if (!document.fullscreenElement && wrapperRef.current) {
+            await wrapperRef.current.requestFullscreen().catch(console.error);
+        } else if (document.fullscreenElement) {
+            await document.exitFullscreen().catch(console.error);
+        }
+    };
+
+    // Global hotkey 'c' for chat toggle in fullscreen
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (!isFullscreen) return;
+            const target = e.target as HTMLElement;
+            if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+
+            if (e.key.toLowerCase() === "c") {
+                e.preventDefault();
+                setIsChatVisible(prev => !prev);
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [isFullscreen]);
 
     // Sync status
     const [syncStatus, setSyncStatus] = useState<"synced" | "behind" | "unknown">("unknown");
@@ -243,6 +284,7 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
             autoplay: 0, 
             controls: stableIsOwner ? 1 : 0, // Hide YouTube controls for non-owners
             disablekb: stableIsOwner ? 0 : 1, // Disable keyboard for non-owners
+            fs: 0, // Disable native fullscreen so we use our custom wrapper fullscreen
             rel: 0,
         },
     }), [stableIsOwner]);
@@ -283,7 +325,7 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
             )}
 
             {/* Player Wrapper */}
-            <div className={`flex-1 w-full bg-black relative flex items-center justify-center tour-video-player ${!isOwner ? 'pointer-events-none' : ''}`}>
+            <div ref={wrapperRef} id="syncroom-video-wrapper" className={`flex-1 w-full bg-black relative flex items-center justify-center tour-video-player ${!isOwner ? 'pointer-events-none' : ''}`}>
                 {/* Sync Status Badge */}
                 {!isOwner && syncStatus !== "unknown" && (
                     <div className={`absolute top-3 right-3 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium backdrop-blur-md pointer-events-auto ${
@@ -309,6 +351,48 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
                         {isPiP ? "Exit PiP" : "PiP"}
                     </button>
                 )}
+                {/* Fullscreen Button */}
+                <button
+                    onClick={toggleFullscreen}
+                    className="absolute bottom-4 right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-700/50 text-white text-[11px] font-medium backdrop-blur-md pointer-events-auto transition-colors shadow-lg"
+                >
+                    <Maximize size={14} />
+                    {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                </button>
+
+                {/* Floating Chat Overlay (Fullscreen Only) */}
+                {isFullscreen && isChatVisible && (
+                    <div 
+                        className="absolute right-4 top-4 bottom-16 w-80 z-50 flex flex-col transition-opacity duration-300 pointer-events-auto"
+                        style={{ opacity: chatOpacity }}
+                    >
+                        {/* Overlay Header with Controls */}
+                        <div className="bg-zinc-900/90 backdrop-blur-md border border-zinc-700 rounded-t-xl px-3 py-2 flex items-center justify-between shrink-0 shadow-lg">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-zinc-300 font-medium">Chat Opacity</span>
+                                <input 
+                                    type="range" 
+                                    min="0.2" max="1" step="0.1"
+                                    value={chatOpacity}
+                                    onChange={(e) => setChatOpacity(parseFloat(e.target.value))}
+                                    className="w-20 accent-indigo-500"
+                                />
+                            </div>
+                            <button 
+                                onClick={() => setIsChatVisible(false)}
+                                className="text-zinc-400 hover:text-white hover:bg-zinc-800 p-1 rounded transition-colors"
+                                title="Close chat (Press 'c' to reopen)"
+                            >
+                                <X size={14} />
+                            </button>
+                        </div>
+                        {/* Chat Panel Content */}
+                        <div className="flex-1 overflow-hidden bg-zinc-950/90 backdrop-blur-md border-x border-b border-zinc-700 rounded-b-xl shadow-2xl flex flex-col">
+                            <ChatPanel socket={socket} roomId={roomId} />
+                        </div>
+                    </div>
+                )}
+
                 {isVideoType === "youtube" ? (
                     <YouTube
                         videoId={url}
