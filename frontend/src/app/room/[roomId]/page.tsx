@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { io, Socket } from "socket.io-client";
 import { useRoomStore } from "@/store/useRoomStore";
 import { Button } from "@/components/ui/button";
-import { LogOut, Mic, MicOff, Video, VideoOff, MonitorUp, Users as UsersIcon, MessageSquare, Copy, Check, Play, Share2, Link2, WifiOff, Settings, Hand, Vote } from "lucide-react";
+import { LogOut, Mic, MicOff, Video, VideoOff, MonitorUp, Users as UsersIcon, MessageSquare, Copy, Check, Play, Share2, Link2, WifiOff, Settings, Hand, Vote, ListVideo } from "lucide-react";
 import EmojiReactions from "@/components/EmojiReactions";
 import {
     Dialog,
@@ -27,6 +27,7 @@ import { useSettingsStore } from "@/store/useSettingsStore";
 import SettingsModal from "@/components/SettingsModal";
 import HostControls from "@/components/HostControls";
 import PollsPanel from "@/components/PollsPanel";
+import QueuePanel from "@/components/QueuePanel";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000";
 
@@ -53,7 +54,7 @@ export default function RoomPage() {
     const [isDisconnected, setIsDisconnected] = useState(false);
 
     // UI Toggles
-    const [showSidebar, setShowSidebar] = useState<"chat" | "participants" | "polls" | null>("chat");
+    const [showSidebar, setShowSidebar] = useState<"chat" | "participants" | "polls" | "queue" | null>("chat");
 
     const { users, setUsers, addUser, removeUser, addMessage, updateUser, setVideoQueue, setPolls, setQuestions } = useRoomStore();
     const { shortcuts } = useSettingsStore();
@@ -478,6 +479,15 @@ export default function RoomPage() {
                             <Vote size={16} />
                             <span className="hidden sm:inline text-xs">Polls & Q&A</span>
                         </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`h-9 px-3 gap-1.5 rounded-lg transition-all ${showSidebar === "queue" ? "bg-indigo-500/10 text-indigo-400" : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"}`}
+                            onClick={() => setShowSidebar(showSidebar === "queue" ? null : "queue")}
+                        >
+                            <ListVideo size={16} />
+                            <span className="hidden sm:inline text-xs">Up Next</span>
+                        </Button>
                         {isOwner && <HostControls socket={socket} roomId={roomId as string} />}
                         <Button
                             variant="ghost"
@@ -554,7 +564,12 @@ export default function RoomPage() {
 
                         {/* Video Player */}
                         <div className="flex-1 flex flex-col glass rounded-xl overflow-hidden min-h-[300px] tour-video-player">
-                            <VideoPlayer socket={socket} roomId={roomId as string} />
+                            <VideoPlayer 
+                                socket={socket} 
+                                roomId={roomId as string} 
+                                onToggleQueue={() => setShowSidebar(prev => prev === "queue" ? null : "queue")}
+                                isQueueOpen={showSidebar === "queue"}
+                            />
                         </div>
                     </div>
 
@@ -646,8 +661,10 @@ export default function RoomPage() {
                             <ChatPanel socket={socket} roomId={roomId as string} />
                         ) : showSidebar === "participants" ? (
                             <ParticipantsPanel socket={socket} roomId={roomId as string} />
-                        ) : (
+                        ) : showSidebar === "polls" ? (
                             <PollsPanel socket={socket} roomId={roomId as string} />
+                        ) : (
+                            <QueuePanel socket={socket} roomId={roomId as string} onClose={() => setShowSidebar(null)} />
                         )}
                     </aside>
                 )}

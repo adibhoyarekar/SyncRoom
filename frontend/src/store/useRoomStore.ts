@@ -54,6 +54,7 @@ export interface VideoInfo {
     title: string;
     thumbnail: string;
     addedBy?: string;
+    channelName?: string;
 }
 
 interface RoomState {

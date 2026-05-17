@@ -7,7 +7,7 @@ import { useRoomStore } from "@/store/useRoomStore";
 import { Socket } from "socket.io-client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Play, Upload, PictureInPicture2, Check, AlertTriangle, Maximize, X, ListPlus, Trash2, ListVideo, PenTool } from "lucide-react";
+import { Play, Upload, PictureInPicture2, Check, AlertTriangle, Maximize, X, ListPlus, ListVideo, PenTool } from "lucide-react";
 import ChatPanel from "@/components/ChatPanel";
 import EmojiReactions from "@/components/EmojiReactions";
 import Whiteboard from "@/components/Whiteboard";
@@ -16,9 +16,11 @@ import { useSettingsStore } from "@/store/useSettingsStore";
 interface VideoPlayerProps {
     socket: Socket;
     roomId: string;
+    onToggleQueue?: () => void;
+    isQueueOpen?: boolean;
 }
 
-export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
+export default function VideoPlayer({ socket, roomId, onToggleQueue, isQueueOpen }: VideoPlayerProps) {
     const { users, videoQueue } = useRoomStore();
     const isOwner = users.find(u => u.id === socket?.id)?.isOwner ?? false;
 
@@ -41,7 +43,6 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
     const ytPlayerRef = useRef<YouTubePlayer | null>(null);
     const nativeVideoRef = useRef<HTMLVideoElement | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const [showQueuePanel, setShowQueuePanel] = useState(false);
     const [isWhiteboardActive, setIsWhiteboardActive] = useState(false);
 
     // PiP state
@@ -275,25 +276,7 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
         }
     };
 
-    const handlePlayQueueItem = (index: number) => {
-        if (!isOwner) return;
-        const item = videoQueue[index];
-        if (!item) return;
 
-        const url = typeof item === "string" ? item : item.url;
-        const videoId = extractYouTubeId(url);
-        if (videoId) {
-            setIsVideoType("youtube");
-            setUrl(videoId);
-            socket.emit("video-url-change", { roomId, newUrl: url });
-            socket.emit("remove-from-queue", { roomId, index });
-        }
-    };
-
-    const handleRemoveFromQueue = (index: number) => {
-        if (!isOwner) return;
-        socket.emit("remove-from-queue", { roomId, index });
-    };
 
     const handleEnd = () => {
         if (!isOwner) return;
@@ -412,8 +395,8 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
                         type="button"
                         size="sm"
                         variant="ghost"
-                        onClick={() => setShowQueuePanel(!showQueuePanel)}
-                        className={`shrink-0 h-9 transition-colors ${showQueuePanel || videoQueue.length > 0 ? "text-indigo-400 bg-indigo-500/10" : "text-zinc-400"}`}
+                        onClick={onToggleQueue}
+                        className={`shrink-0 h-9 transition-colors ${isQueueOpen || videoQueue.length > 0 ? "text-indigo-400 bg-indigo-500/10" : "text-zinc-400"}`}
                     >
                         <ListVideo size={14} className="mr-1.5" />
                         Up Next
@@ -518,79 +501,6 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
                         {/* Chat Panel Content */}
                         <div className="flex-1 overflow-hidden bg-zinc-950/90 backdrop-blur-md border-x border-b border-zinc-700 rounded-b-xl shadow-2xl flex flex-col">
                             <ChatPanel socket={socket} roomId={roomId} />
-                        </div>
-                    </div>
-                )}
-
-                {/* Video Queue Panel */}
-                {showQueuePanel && (
-                    <div className="absolute top-4 right-4 w-72 max-h-[80%] bg-zinc-900/95 backdrop-blur-md border border-zinc-700 rounded-xl shadow-2xl flex flex-col z-40 overflow-hidden">
-                        <div className="bg-zinc-800/50 px-4 py-3 border-b border-zinc-700 flex items-center justify-between">
-                            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                                <ListVideo size={16} className="text-indigo-400" />
-                                Up Next
-                            </h3>
-                            <button onClick={() => setShowQueuePanel(false)} className="text-zinc-400 hover:text-white">
-                                <X size={14} />
-                            </button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-2">
-                            {videoQueue.length === 0 ? (
-                                <p className="text-xs text-zinc-500 text-center py-6">The queue is empty.<br/>Paste YouTube links above to add them!</p>
-                            ) : (
-                                <div className="space-y-2">
-                                    {videoQueue.map((item, idx) => {
-                                        const isObj = typeof item !== "string";
-                                        const title = isObj ? item.title : "YouTube Video";
-                                        const url = isObj ? item.url : item;
-                                        const thumbnail = isObj ? item.thumbnail : `https://img.youtube.com/vi/${extractYouTubeId(url)}/mqdefault.jpg`;
-                                        const addedBy = isObj ? item.addedBy : null;
-
-                                        return (
-                                            <div key={idx} className="flex items-center gap-2.5 bg-zinc-800/35 hover:bg-zinc-800/60 border border-zinc-700/30 p-2 rounded-lg group transition-all duration-150">
-                                                {/* Thumbnail preview with index overlay */}
-                                                <div className="relative w-14 h-9 rounded overflow-hidden bg-black shrink-0 border border-zinc-700/50">
-                                                    {thumbnail ? (
-                                                        <img src={thumbnail} alt="" className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-[8px] text-zinc-500">Video</div>
-                                                    )}
-                                                    <div className="absolute top-0 left-0 bg-black/75 px-1 py-0.5 rounded-br text-[8px] font-bold text-zinc-300">
-                                                        {idx + 1}
-                                                    </div>
-                                                </div>
-
-                                                {/* Text Info */}
-                                                <div className="flex-1 min-w-0">
-                                                    <h4 
-                                                        className={`text-[11px] font-semibold truncate leading-snug ${isOwner ? 'text-zinc-200 hover:text-indigo-400 cursor-pointer' : 'text-zinc-300'}`}
-                                                        onClick={() => isOwner && handlePlayQueueItem(idx)}
-                                                        title={isOwner ? "Click to play immediately" : undefined}
-                                                    >
-                                                        {title}
-                                                    </h4>
-                                                    {addedBy && (
-                                                        <div className="text-[8px] text-zinc-500 mt-0.5 truncate">
-                                                            Added by {addedBy}
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                {/* Remove button */}
-                                                {isOwner && (
-                                                    <button
-                                                        onClick={() => handleRemoveFromQueue(idx)}
-                                                        className="opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-all shrink-0"
-                                                        title="Remove from queue"
-                                                    >
-                                                        <Trash2 size={11} />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
                         </div>
                     </div>
                 )}
