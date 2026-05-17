@@ -39,6 +39,7 @@ export default function VideoPlayer({ socket, roomId, onToggleQueue, isQueueOpen
     const [url, setUrl] = useState("aqz-KE-bpKQ"); // YouTube Video ID
     const [isVideoType, setIsVideoType] = useState<"youtube" | "local">("youtube");
     const [localVideoUrl, setLocalVideoUrl] = useState("");
+    const [isVertical, setIsVertical] = useState(false);
     const [inputUrl, setInputUrl] = useState("");
     const ytPlayerRef = useRef<YouTubePlayer | null>(null);
     const nativeVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -285,6 +286,15 @@ export default function VideoPlayer({ socket, roomId, onToggleQueue, isQueueOpen
         }
     };
 
+    const handleLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+        const video = e.currentTarget;
+        if (video) {
+            const width = video.videoWidth;
+            const height = video.videoHeight;
+            setIsVertical(height > width);
+        }
+    };
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!isOwner) return;
         const file = e.target.files?.[0];
@@ -292,6 +302,7 @@ export default function VideoPlayer({ socket, roomId, onToggleQueue, isQueueOpen
             const objectUrl = URL.createObjectURL(file);
             setIsVideoType("local");
             setLocalVideoUrl(objectUrl);
+            setIsVertical(false); // Detected dynamically on load metadata
         }
     };
 
@@ -527,16 +538,27 @@ export default function VideoPlayer({ socket, roomId, onToggleQueue, isQueueOpen
                         iframeClassName="w-full h-full"
                     />
                 ) : (
-                    <video
-                        ref={nativeVideoRef}
-                        src={localVideoUrl}
-                        controls={isOwner}
-                        className="w-full h-full object-contain pointer-events-auto"
-                        onPlay={handlePlay}
-                        onPause={handlePause}
-                        onSeeked={(e) => handleSeek((e.target as HTMLVideoElement).currentTime)}
-                        onEnded={handleEnd}
-                    />
+                    <div 
+                        className={`transition-all duration-500 ease-out relative flex items-center justify-center pointer-events-auto overflow-hidden ${
+                            isVertical 
+                                ? "h-[90%] aspect-[9/16] rounded-2xl border-2 border-zinc-800/80 shadow-[0_0_50px_rgba(99,102,241,0.2)] bg-zinc-950" 
+                                : "w-full h-full"
+                        }`}
+                    >
+                        <video
+                            ref={nativeVideoRef}
+                            src={localVideoUrl}
+                            controls={isOwner}
+                            className={`w-full h-full pointer-events-auto relative z-10 ${
+                                isVertical ? "object-contain rounded-xl" : "object-contain"
+                            }`}
+                            onPlay={handlePlay}
+                            onPause={handlePause}
+                            onSeeked={(e) => handleSeek((e.target as HTMLVideoElement).currentTime)}
+                            onEnded={handleEnd}
+                            onLoadedMetadata={handleLoadedMetadata}
+                        />
+                    </div>
                 )}
             </div>
         </div>
