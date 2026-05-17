@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { io, Socket } from "socket.io-client";
 import { useRoomStore } from "@/store/useRoomStore";
 import { Button } from "@/components/ui/button";
@@ -566,9 +566,20 @@ export default function RoomPage() {
                             size="sm"
                             onClick={() => router.push("/dashboard")}
                             className="h-9 px-3 gap-1.5 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all"
+                            title="Leave Room to Dashboard"
                         >
                             <LogOut size={16} />
                             <span className="hidden sm:inline text-xs">Leave</span>
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => signOut({ callbackUrl: "/" })}
+                            className="h-9 px-3 gap-1.5 rounded-lg text-rose-500 hover:text-rose-450 hover:bg-rose-500/10 border border-zinc-900/60 hover:border-rose-500/20 transition-all ml-1"
+                            title="Sign Out Completely"
+                        >
+                            <LogOut size={16} />
+                            <span className="hidden sm:inline text-xs">Sign Out</span>
                         </Button>
                     </div>
                 </div>

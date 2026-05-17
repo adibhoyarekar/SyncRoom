@@ -154,12 +154,13 @@ export default function Dashboard() {
                     </div>
                     <Button
                         variant="ghost"
-                        size="icon"
-                        onClick={() => signOut()}
-                        className="h-9 w-9 text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-2xl transition-all cursor-pointer border border-transparent hover:border-rose-500/20"
-                        title="Sign Out"
+                        size="sm"
+                        onClick={() => signOut({ callbackUrl: "/" })}
+                        className="h-9 px-3 gap-1.5 rounded-2xl text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 border border-zinc-800/80 hover:border-rose-500/25 transition-all cursor-pointer"
+                        title="Sign Out Completely"
                     >
                         <LogOut size={14} />
+                        <span className="hidden sm:inline text-xs font-bold">Sign Out</span>
                     </Button>
                 </div>
             </header>

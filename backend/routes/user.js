@@ -18,11 +18,15 @@ router.post('/sync', async (req, res) => {
             // Do NOT overwrite user's manual edits if they already exist in database!
             // We only apply defaults if they are currently blank.
             if (!user.name) user.name = name;
-            if (!user.image) user.image = image;
+            if (!user.image) user.image = image || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(email)}`;
             await user.save();
         } else {
             // Create new user
-            user = new User({ name, email, image });
+            user = new User({ 
+                name, 
+                email, 
+                image: image || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(email)}` 
+            });
             await user.save();
         }
         

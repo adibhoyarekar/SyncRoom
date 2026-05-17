@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-    Play, Zap, Video, Sparkles, Check, 
-    Copy, Laptop, Edit3, ChevronDown, 
+    Play, Zap, Video, Sparkles, 
+    Laptop, Edit3, ChevronDown, 
     ArrowRight, Info, Layers, HelpCircle
 } from "lucide-react";
 
@@ -20,8 +20,7 @@ export default function Home() {
     // Active Feature showcase tab
     const [activeFeature, setActiveFeature] = useState<number>(0);
 
-    // Demo Room Clipboard copy state
-    const [copiedDemo, setCopiedDemo] = useState(false);
+
 
     useEffect(() => {
         if (status === "authenticated") {
@@ -29,11 +28,7 @@ export default function Home() {
         }
     }, [status, router]);
 
-    const copyDemoCode = () => {
-        navigator.clipboard.writeText("ROOM-77X9");
-        setCopiedDemo(true);
-        setTimeout(() => setCopiedDemo(false), 2000);
-    };
+
 
     if (status === "loading") {
         return (
@@ -176,23 +171,6 @@ export default function Home() {
                             Open Dashboard Console
                             <ArrowRight size={16} strokeWidth={2.5} />
                         </button>
-
-                        <div className="flex items-center justify-between bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800/80">
-                            <div className="pr-4">
-                                <span className="text-[9px] text-zinc-500 block uppercase font-extrabold tracking-wider">Test Invite Code</span>
-                                <span className="text-xs font-mono text-indigo-300 font-bold tracking-widest">ROOM-77X9</span>
-                            </div>
-                            <button
-                                onClick={copyDemoCode}
-                                className={`px-3 py-2 rounded-xl text-[10px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                                    copiedDemo 
-                                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
-                                        : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
-                                }`}
-                            >
-                                {copiedDemo ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy Code</>}
-                            </button>
-                        </div>
                     </div>
                 </div>
 
