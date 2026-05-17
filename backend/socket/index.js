@@ -79,7 +79,7 @@ export default function initSocket(io) {
 
         socket.on('video-url-change', ({ roomId, newUrl }) => {
             if (isUserOwner(roomId, socket.id)) {
-                socket.to(roomId).emit('video-url-change', { newUrl });
+                io.to(roomId).emit('video-url-change', { newUrl });
             }
         });
 
