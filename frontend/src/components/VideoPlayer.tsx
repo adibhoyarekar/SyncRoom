@@ -7,9 +7,10 @@ import { useRoomStore } from "@/store/useRoomStore";
 import { Socket } from "socket.io-client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Play, Upload, PictureInPicture2, Check, AlertTriangle, Maximize, X, ListPlus, Trash2, ListVideo } from "lucide-react";
+import { Play, Upload, PictureInPicture2, Check, AlertTriangle, Maximize, X, ListPlus, Trash2, ListVideo, PenTool } from "lucide-react";
 import ChatPanel from "@/components/ChatPanel";
 import EmojiReactions from "@/components/EmojiReactions";
+import Whiteboard from "@/components/Whiteboard";
 import { useSettingsStore } from "@/store/useSettingsStore";
 
 interface VideoPlayerProps {
@@ -41,6 +42,7 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
     const nativeVideoRef = useRef<HTMLVideoElement | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showQueuePanel, setShowQueuePanel] = useState(false);
+    const [isWhiteboardActive, setIsWhiteboardActive] = useState(false);
 
     // PiP state
     const [isPiP, setIsPiP] = useState(false);
@@ -82,6 +84,9 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
             if (key === shortcuts.chat) {
                 e.preventDefault();
                 setIsChatVisible(prev => !prev);
+            } else if (key === shortcuts.whiteboard) {
+                e.preventDefault();
+                setIsWhiteboardActive(prev => !prev);
             }
         };
         window.addEventListener("keydown", handleKeyDown);
@@ -368,6 +373,15 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
                             </span>
                         )}
                     </Button>
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setIsWhiteboardActive(!isWhiteboardActive)}
+                        className={`shrink-0 h-9 transition-colors ${isWhiteboardActive ? "text-indigo-400 bg-indigo-500/10" : "text-zinc-400 hover:text-white"}`}
+                    >
+                        <PenTool size={14} className="mr-1.5" /> Annotate
+                    </Button>
                     <input
                         type="file"
                         accept="video/*"
@@ -498,6 +512,16 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
                             )}
                         </div>
                     </div>
+                )}
+
+                {/* Whiteboard Overlay */}
+                {isWhiteboardActive && (
+                    <Whiteboard 
+                        socket={socket} 
+                        roomId={roomId} 
+                        isOwner={stableIsOwner} 
+                        onClose={() => setIsWhiteboardActive(false)} 
+                    />
                 )}
 
                 {isVideoType === "youtube" ? (

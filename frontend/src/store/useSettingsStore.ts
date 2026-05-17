@@ -7,6 +7,7 @@ interface SettingsStore {
         camera: string;
         fullscreen: string;
         chat: string;
+        whiteboard: string;
     };
     setShortcut: (action: keyof SettingsStore["shortcuts"], key: string) => void;
 }
@@ -19,6 +20,7 @@ export const useSettingsStore = create<SettingsStore>()(
                 camera: "v",
                 fullscreen: "f",
                 chat: "c",
+                whiteboard: "w",
             },
             setShortcut: (action, key) =>
                 set((state) => ({

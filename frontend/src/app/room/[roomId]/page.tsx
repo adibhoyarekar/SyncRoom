@@ -542,6 +542,10 @@ export default function RoomPage() {
                             <kbd className="px-2 py-1 bg-zinc-800 border border-zinc-700/50 rounded-md text-[10px] font-mono text-zinc-300 shadow-sm uppercase min-w-[24px] text-center">{shortcuts.chat}</kbd>
                             <span className="text-[11px] text-zinc-500 font-medium">Toggle Chat</span>
                         </div>
+                        <div className="flex items-center gap-2">
+                            <kbd className="px-2 py-1 bg-zinc-800 border border-zinc-700/50 rounded-md text-[10px] font-mono text-zinc-300 shadow-sm uppercase min-w-[24px] text-center">{shortcuts.whiteboard}</kbd>
+                            <span className="text-[11px] text-zinc-500 font-medium">Whiteboard</span>
+                        </div>
                     </div>
                 </main>
 

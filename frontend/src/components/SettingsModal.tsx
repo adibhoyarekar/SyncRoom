@@ -67,7 +67,8 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
                                 <span className="text-sm font-medium capitalize text-zinc-300">
                                     {action === "camera" ? "Toggle Camera" : 
                                      action === "mute" ? "Toggle Microphone" : 
-                                     action === "fullscreen" ? "Toggle Fullscreen" : "Toggle Chat"}
+                                     action === "fullscreen" ? "Toggle Fullscreen" : 
+                                     action === "whiteboard" ? "Toggle Whiteboard" : "Toggle Chat"}
                                 </span>
                                 <button
                                     onClick={() => setListeningFor(action)}

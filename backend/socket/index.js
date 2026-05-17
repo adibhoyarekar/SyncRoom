@@ -109,6 +109,32 @@ export default function initSocket(io) {
             }
         });
 
+        // Collaborative Whiteboard
+        socket.on('draw-line', ({ roomId, x0, y0, x1, y1, color, width }) => {
+            socket.to(roomId).emit('draw-line', { x0, y0, x1, y1, color, width });
+        });
+
+        socket.on('clear-whiteboard', ({ roomId }) => {
+            socket.to(roomId).emit('clear-whiteboard');
+        });
+
+        socket.on('request-whiteboard', ({ roomId }) => {
+            // Find the primary owner to ask for the current whiteboard state
+            const roomUsers = rooms.get(roomId);
+            if (roomUsers) {
+                for (const [id, u] of roomUsers.entries()) {
+                    if (u.isPrimaryOwner) {
+                        io.to(id).emit('sync-whiteboard-request', { requesterId: socket.id });
+                        break;
+                    }
+                }
+            }
+        });
+
+        socket.on('sync-whiteboard-response', ({ requesterId, dataUrl }) => {
+            io.to(requesterId).emit('sync-whiteboard-response', { dataUrl });
+        });
+
         // Emoji Reactions (broadcast to everyone including sender)
         socket.on('emoji-reaction', ({ roomId, emoji, userName }) => {
             io.to(roomId).emit('emoji-reaction', { emoji, userName, senderId: socket.id });
