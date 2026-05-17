@@ -11,6 +11,8 @@ interface SettingsStore {
         polls: string;
     };
     setShortcut: (action: keyof SettingsStore["shortcuts"], key: string) => void;
+    youtubeApiKey: string;
+    setYoutubeApiKey: (key: string) => void;
 }
 
 export const useSettingsStore = create<SettingsStore>()(
@@ -31,6 +33,8 @@ export const useSettingsStore = create<SettingsStore>()(
                         [action]: key.toLowerCase(),
                     },
                 })),
+            youtubeApiKey: "",
+            setYoutubeApiKey: (key) => set({ youtubeApiKey: key }),
         }),
         {
             name: "syncroom-settings",
