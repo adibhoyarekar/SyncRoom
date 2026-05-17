@@ -57,8 +57,8 @@ interface RoomState {
     removeUser: (socketId: string) => void;
     updateUser: (socketId: string, updates: Partial<User>) => void;
     addMessage: (message: Message) => void;
-    videoQueue: string[];
-    setVideoQueue: (queue: string[]) => void;
+    videoQueue: any[];
+    setVideoQueue: (queue: any[]) => void;
     polls: Poll[];
     setPolls: (polls: Poll[]) => void;
     questions: Question[];

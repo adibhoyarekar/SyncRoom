@@ -84,12 +84,13 @@ export default function initSocket(io) {
         });
 
         // Video Queue
-        socket.on('add-to-queue', ({ roomId, videoUrl }) => {
+        socket.on('add-to-queue', ({ roomId, videoUrl, videoInfo }) => {
             if (!roomQueues.has(roomId)) {
                 roomQueues.set(roomId, []);
             }
             const queue = roomQueues.get(roomId);
-            queue.push(videoUrl);
+            const item = videoInfo || videoUrl;
+            queue.push(item);
             io.to(roomId).emit('queue-updated', { queue });
         });
 
@@ -107,10 +108,11 @@ export default function initSocket(io) {
             if (isUserOwner(roomId, socket.id)) {
                 const queue = roomQueues.get(roomId);
                 if (queue && queue.length > 0) {
-                    const nextUrl = queue.shift();
+                    const nextItem = queue.shift();
+                    const newUrl = (typeof nextItem === 'string') ? nextItem : nextItem.url;
                     // Emit video-url-change to EVERYONE, including the owner who requested it,
                     // so the owner's UI updates automatically.
-                    io.to(roomId).emit('video-url-change', { newUrl: nextUrl });
+                    io.to(roomId).emit('video-url-change', { newUrl });
                     io.to(roomId).emit('queue-updated', { queue });
                 }
             }

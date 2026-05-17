@@ -230,13 +230,63 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
         }
     };
 
-    const handleAddToQueue = () => {
-        const videoId = extractYouTubeId(inputUrl);
-        if (videoId) {
-            socket.emit("add-to-queue", { roomId, videoUrl: inputUrl });
+    const handleAddToQueue = async () => {
+        // Split by newlines, commas, or spaces to support batch pasting of unlimited links
+        const urls = inputUrl.split(/[\n,\s]+/).map(u => u.trim()).filter(u => u !== "");
+        if (urls.length === 0) return;
+
+        let addedCount = 0;
+        for (const url of urls) {
+            const videoId = extractYouTubeId(url);
+            if (videoId) {
+                let title = "YouTube Video";
+                try {
+                    const res = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(url)}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data && data.title) {
+                            title = data.title;
+                        }
+                    }
+                } catch (err) {
+                    console.warn("Could not fetch title:", err);
+                }
+
+                const thumbnail = `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
+                const localUser = users.find(u => u.id === socket.id);
+
+                socket.emit("add-to-queue", {
+                    roomId,
+                    videoInfo: {
+                        url,
+                        title,
+                        thumbnail,
+                        addedBy: localUser?.name || "Guest"
+                    }
+                });
+                addedCount++;
+            }
+        }
+
+        if (addedCount > 0) {
             setInputUrl("");
         } else {
-            alert("Invalid YouTube URL");
+            alert("Please paste one or more valid YouTube URLs.");
+        }
+    };
+
+    const handlePlayQueueItem = (index: number) => {
+        if (!isOwner) return;
+        const item = videoQueue[index];
+        if (!item) return;
+
+        const url = typeof item === "string" ? item : item.url;
+        const videoId = extractYouTubeId(url);
+        if (videoId) {
+            setIsVideoType("youtube");
+            setUrl(videoId);
+            socket.emit("video-url-change", { roomId, newUrl: url });
+            socket.emit("remove-from-queue", { roomId, index });
         }
     };
 
@@ -486,28 +536,59 @@ export default function VideoPlayer({ socket, roomId }: VideoPlayerProps) {
                         </div>
                         <div className="flex-1 overflow-y-auto p-2">
                             {videoQueue.length === 0 ? (
-                                <p className="text-xs text-zinc-500 text-center py-6">The queue is empty.<br/>Paste a YouTube link above to add one!</p>
+                                <p className="text-xs text-zinc-500 text-center py-6">The queue is empty.<br/>Paste YouTube links above to add them!</p>
                             ) : (
                                 <div className="space-y-2">
-                                    {videoQueue.map((vUrl, idx) => (
-                                        <div key={idx} className="flex items-center justify-between bg-zinc-800/30 border border-zinc-700/50 p-2 rounded-lg group">
-                                            <div className="flex items-center gap-3 min-w-0">
-                                                <span className="text-xs font-bold text-zinc-500 w-4">{idx + 1}</span>
-                                                <div className="text-xs text-zinc-300 truncate">
-                                                    {extractYouTubeId(vUrl) || "Unknown Video"}
+                                    {videoQueue.map((item, idx) => {
+                                        const isObj = typeof item !== "string";
+                                        const title = isObj ? item.title : "YouTube Video";
+                                        const url = isObj ? item.url : item;
+                                        const thumbnail = isObj ? item.thumbnail : `https://img.youtube.com/vi/${extractYouTubeId(url)}/mqdefault.jpg`;
+                                        const addedBy = isObj ? item.addedBy : null;
+
+                                        return (
+                                            <div key={idx} className="flex items-center gap-2.5 bg-zinc-800/35 hover:bg-zinc-800/60 border border-zinc-700/30 p-2 rounded-lg group transition-all duration-150">
+                                                {/* Thumbnail preview with index overlay */}
+                                                <div className="relative w-14 h-9 rounded overflow-hidden bg-black shrink-0 border border-zinc-700/50">
+                                                    {thumbnail ? (
+                                                        <img src={thumbnail} alt="" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-[8px] text-zinc-500">Video</div>
+                                                    )}
+                                                    <div className="absolute top-0 left-0 bg-black/75 px-1 py-0.5 rounded-br text-[8px] font-bold text-zinc-300">
+                                                        {idx + 1}
+                                                    </div>
                                                 </div>
+
+                                                {/* Text Info */}
+                                                <div className="flex-1 min-w-0">
+                                                    <h4 
+                                                        className={`text-[11px] font-semibold truncate leading-snug ${isOwner ? 'text-zinc-200 hover:text-indigo-400 cursor-pointer' : 'text-zinc-300'}`}
+                                                        onClick={() => isOwner && handlePlayQueueItem(idx)}
+                                                        title={isOwner ? "Click to play immediately" : undefined}
+                                                    >
+                                                        {title}
+                                                    </h4>
+                                                    {addedBy && (
+                                                        <div className="text-[8px] text-zinc-500 mt-0.5 truncate">
+                                                            Added by {addedBy}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Remove button */}
+                                                {isOwner && (
+                                                    <button
+                                                        onClick={() => handleRemoveFromQueue(idx)}
+                                                        className="opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-all shrink-0"
+                                                        title="Remove from queue"
+                                                    >
+                                                        <Trash2 size={11} />
+                                                    </button>
+                                                )}
                                             </div>
-                                            {isOwner && (
-                                                <button
-                                                    onClick={() => handleRemoveFromQueue(idx)}
-                                                    className="opacity-0 group-hover:opacity-100 p-1.5 text-red-400 hover:bg-red-500/20 rounded transition-all"
-                                                    title="Remove from queue"
-                                                >
-                                                    <Trash2 size={12} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
