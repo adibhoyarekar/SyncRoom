@@ -5,37 +5,29 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-    ArrowRight, Play, Zap, Users, Video, Search,
-    Command, Laptop, Check, Copy, Edit3
+    Play, Zap, Video, Sparkles, Check, 
+    Copy, Laptop, Edit3, ChevronDown, 
+    ArrowRight, Info, Layers, HelpCircle
 } from "lucide-react";
 
 export default function Home() {
     const { status } = useSession();
     const router = useRouter();
 
-    // Sandbox command menu selection
-    const [selectedCommand, setSelectedCommand] = useState<string>("sync");
+    // FAQ state management (clicking accordions)
+    const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
+
+    // Active Feature showcase tab
+    const [activeFeature, setActiveFeature] = useState<number>(0);
+
+    // Demo Room Clipboard copy state
     const [copiedDemo, setCopiedDemo] = useState(false);
-    const [keyPressed, setKeyPressed] = useState<string | null>(null);
 
     useEffect(() => {
         if (status === "authenticated") {
             router.push("/dashboard");
         }
     }, [status, router]);
-
-    // Handle physical keyboard shortcuts inside the interactive landing sandbox
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            const key = e.key.toLowerCase();
-            if (["m", "c", "w", "p", "f"].includes(key)) {
-                setKeyPressed(key.toUpperCase());
-                setTimeout(() => setKeyPressed(null), 1000);
-            }
-        };
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, []);
 
     const copyDemoCode = () => {
         navigator.clipboard.writeText("ROOM-77X9");
@@ -45,8 +37,8 @@ export default function Home() {
 
     if (status === "loading") {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-[#070709]">
-                <div className="relative w-10 h-10">
+            <div className="min-h-screen flex items-center justify-center bg-[#050506]">
+                <div className="relative w-12 h-12">
                     <div className="absolute inset-0 rounded-full border-2 border-indigo-500/20 animate-ping" />
                     <div className="absolute inset-0 rounded-full border-2 border-t-indigo-500 animate-spin" />
                 </div>
@@ -54,279 +46,372 @@ export default function Home() {
         );
     }
 
-    const commandList = [
+    const faqItems = [
         {
-            id: "sync",
-            title: "Millisecond Playback Sync",
-            subtitle: "Sub-second real-time timeline correction",
-            category: "Core Engine",
-            icon: <Zap size={14} className="text-yellow-400" />,
-            shortcut: "⏎"
+            q: "How does the millisecond playback synchronization work under the hood?",
+            a: "SyncRoom operates on a state-driven socket synchronization architecture. When a Room Owner pauses, plays, or seeks, the system immediately captures the high-precision timestamp of the HTML5 Media elements and broadcasts a room coordinate frame. All peer endpoints intercept this frame, perform offset calculations to account for individual network latency, and adjust their local players within a margin of 15ms."
         },
         {
-            id: "local",
-            title: "Adaptive Reels/Shorts Mode",
-            subtitle: "Automatic vertical 9:16 border aspect ratio",
-            category: "Media Pipeline",
-            icon: <Laptop size={14} className="text-emerald-400" />,
-            shortcut: "⌥V"
+            q: "Does SyncRoom support native vertical Reels & Shorts files?",
+            a: "Yes, fully! When you drag-and-drop or select any vertical video from your local device, SyncRoom automatically calculates the media aspect ratio. If it is 9:16, the main canvas transitions seamlessly into an elegant physical smartphone bezel frame. This bezel is backlit with ambient, content-aware glass shadows, making co-watching vertical mobile recordings look incredibly high-end."
         },
         {
-            id: "whiteboard",
-            title: "Synched Vector Whiteboard",
-            subtitle: "Co-sketch directly over streaming videos",
-            category: "Collaborative Canvas",
-            icon: <Edit3 size={14} className="text-indigo-400" />,
-            shortcut: "⌘W"
+            q: "How secure is the built-in P2P WebRTC media pipeline?",
+            a: "Completely private and decentralized. Camera and microphone pipelines bypass our databases entirely, establishing peer-to-peer tunnels using low-latency WebRTC streams. Furthermore, room owners are loaded with high-authority moderation credentials, giving them active triggers to force-mute participants or kick users to preserve session security."
         },
         {
-            id: "webrtc",
-            title: "Integrated Video Grid & Hand Raise",
-            subtitle: "Low-latency camera pipes with host force-mute",
-            category: "Realtime Voice",
-            icon: <Video size={14} className="text-rose-400" />,
-            shortcut: "⌘M"
-        },
-        {
-            id: "queue",
-            title: "Dual YouTube Search & Links Queue",
-            subtitle: "Endless up-next videos shared instantaneously",
-            category: "Media Player",
-            icon: <Users size={14} className="text-fuchsia-400" />,
-            shortcut: "⌘Q"
+            q: "Can we sketch on top of standard video streams in real-time?",
+            a: "Absolutely. The built-in whiteboard layer overlays right on top of standard streaming containers. Every drag stroke is captured as high-fidelity SVG coordinates, broadcasted instantly to all socket peers, and drawn locally with zero canvas lag. It is perfect for highlighting frames, coaching, or simply having creative fun with friends."
         }
     ];
 
-    const commandDetails: Record<string, {
-        title: string;
-        desc: string;
-        pill: string;
-        tech: string[];
-        highlight: string;
-    }> = {
-        sync: {
-            title: "Engineered Millisecond Synchronization Loop",
-            desc: "SyncRoom maintains a persistent real-time socket-directed time sync between the Room Owner and all participants. Every pause, seek, and playback trigger broadcasts to the room socket within 15ms. The system auto-corrects player offset buffers seamlessly without stuttering.",
-            pill: "15ms Sync Accuracy",
-            tech: ["Socket.IO Engine", "High-Precision HTML5 Media API", "Frame-Offset Interpolation"],
-            highlight: "Perfect for movies, live sports, and YouTube playlists, ensuring everyone reacts to identical frames at the exact same split second."
+    const deepFeatures = [
+        {
+            title: "Millisecond Playback Core",
+            subtitle: "Socket-Driven Latency Calibration",
+            desc: "Engineered specifically for zero-delay co-watching. Rather than polling servers continuously, SyncRoom intercepts the direct state flow of the web media controller. Command synchronization coordinates seek events, speed rates, and pause frames within 15ms globally. The loop ensures you and your friends react to identical frames at the exact same heartbeat.",
+            icon: <Zap className="text-amber-400 h-5 w-5" />,
+            badge: "15ms Sync Accuracy",
+            tech: ["Socket.IO Engine", "HTML5 Media Pipeline", "Buffer Offset Interpolator"],
+            gradient: "from-amber-500 via-orange-500 to-rose-500"
         },
-        local: {
-            title: "Dynamic Reels & Landscape Orientation Adaptability",
-            desc: "Upload local video files directly from your device! If you upload a vertical video (e.g. smartphone recordings, TikToks, or Instagram Reels), our adaptive container morphs into a premium 9:16 smartphone card bezel complete with rounded edges and an ambient backlight glow. Standard videos default to fullscreen landscape.",
-            pill: "Responsive Bezel Render",
-            tech: ["Aspect-Ratio Detectors", "Bezel Outline Rendering", "Ambient Glowing Dropped Shadows"],
-            highlight: "Co-watch vertical reels or cinematic landscape videos interchangeably, styled exactly like high-end native media applications."
+        {
+            title: "Adaptive Bezel Orientations",
+            subtitle: "Vertical Reels & Landscape Widescreen",
+            desc: "Experience native device frames inside your browser. SyncRoom detects video dimensions automatically. If a vertical 9:16 mobile clip is shared, the layout morphs into an elegant floating smartphone glass bezel with responsive, soft shadow drops and ambient backlight filters. Landscape co-streams scale automatically into ultra-wide theater formats.",
+            icon: <Laptop className="text-teal-400 h-5 w-5" />,
+            badge: "Orientation Morpher",
+            tech: ["Aspect Dimension Listeners", "Smartphone Bezel Renderers", "Backlit Drop Shadows"],
+            gradient: "from-teal-500 via-emerald-500 to-cyan-500"
         },
-        whiteboard: {
-            title: "Shared Vector Whiteboard Overlays",
-            desc: "Need to highlight something in the video? Open the synchronized whiteboard to draw directly on top of the streaming media! Every pen stroke is converted to high-precision vector points and broadcasted globally. Only owners can clear the board, maintaining robust admin controls.",
-            pill: "Zero-Latency Drawings",
-            tech: ["HTML5 Vector Canvas", "High-Frequency Stroke Pipes", "Persistent Layer Interpolation"],
-            highlight: "Perfect for remote tutoring, sharing screen highlights, mock designs, or simply playing games with friends while watching videos."
+        {
+            title: "Hi-Fi WebRTC Media Grid",
+            subtitle: "Decentralized Audio & Video Streams",
+            desc: "Engage in crystal-clear P2P audio and video communication that fits perfectly next to your co-watching canvas. WebRTC coordinates live media pipes with automated echo cancellation and volume sliders. Active participants gain access to single-click Hand Raises, and hosts are equipped with authoritative force-mute and kick command blocks.",
+            icon: <Video className="text-rose-400 h-5 w-5" />,
+            badge: "Decentralized P2P",
+            tech: ["WebRTC P2P Tunnels", "Host Command Modifiers", "Echo Cancellation Filters"],
+            gradient: "from-rose-500 via-fuchsia-500 to-violet-500"
         },
-        webrtc: {
-            title: "Hi-Fi WebRTC Video Conferencing & Hand Raising",
-            desc: "Conferencing is fully integrated directly alongside the media canvas. See and hear friends instantly with clean grids. Users can click 'Raise Hand' to trigger custom visual indicators, while room owners retain administrative permissions to force-mute micro-inputs.",
-            pill: "WebRTC P2P Media Streams",
-            tech: ["PeerJS Real-Time Tunnels", "Automated Hand Raise Overlay", "Host Force-Mute Command"],
-            highlight: "Provides a structured, high-end meeting experience where hosts have ultimate control over who talks and when."
+        {
+            title: "Shared Vector Whiteboard",
+            subtitle: "Collaborative Coordinate Drawing Canvas",
+            desc: "Annotate and sketch directly over your streams. The transparent overlay tracks mouse/touch paths, maps vectors, and redraws strokes on everyone's screen in real time. Features full pencil stroke thickness customization, quick eraser, and owner-only absolute canvas clearing controls, perfect for interactive presentations, reviews, or co-sketch play.",
+            icon: <Edit3 className="text-indigo-400 h-5 w-5" />,
+            badge: "Zero-Lag SVG Vectors",
+            tech: ["HTML5 Vector Overlay", "High-Frequency Stroke Broadcasting", "Layer Synchronization"],
+            gradient: "from-indigo-500 via-violet-500 to-purple-500"
         },
-        queue: {
-            title: "Infinite Video Queue & Widescreen YouTube Search",
-            desc: "Add endless YouTube links or search directly inside our dynamically expanding YouTube control panel! When active, the panel transitions gracefully from 340px to 560px, showing large, premium aspect-ratio media cards. Video metadata and channels are immediately synced to all peers.",
-            pill: "Widescreen YouTube Control",
-            tech: ["YouTube Search V3 API", "Smooth CSS Transit Interpolation", "Queued Playback Sync Pipeline"],
-            highlight: "Easily search, queue, and stream YouTube playlists with rich thumbnails, double-wrapped descriptive titles, and interactive add buttons."
+        {
+            title: "Up Next Playlist Queue",
+            subtitle: "Dual YouTube Search & Direct Link Piping",
+            desc: "Manage media schedules effortlessly. Side-panels support direct URL drag-pasting of multiple links simultaneously, alongside a beautifully expanded direct YouTube Search engine. Search cards feature big, aspect-ratio thumbnails with clear channel titles, allowing peers to curate active rooms dynamically.",
+            icon: <Layers className="text-fuchsia-400 h-5 w-5" />,
+            badge: "Dynamic Playlist Pipeline",
+            tech: ["YouTube Search V3 Proxy", "Batch Queue Parsers", "Instant Playlist Sync"],
+            gradient: "from-fuchsia-500 via-pink-500 to-rose-500"
         }
-    };
+    ];
 
     return (
-        <div className="min-h-screen bg-[#070709] text-zinc-100 relative overflow-hidden noise selection:bg-indigo-600/40">
-            {/* Ambient Background Gradient Orbs */}
-            <div className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full bg-indigo-500/5 filter blur-[120px] pointer-events-none animate-pulse" />
-            <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] rounded-full bg-rose-500/5 filter blur-[100px] pointer-events-none" />
+        <div className="min-h-screen bg-[#050506] text-zinc-100 relative overflow-hidden noise selection:bg-indigo-600/40">
+            {/* High-Vibe Bright Ambient Mesh Gradients */}
+            <div className="absolute top-[-100px] left-1/4 w-[700px] h-[700px] rounded-full bg-gradient-to-tr from-indigo-600/10 via-fuchsia-500/10 to-transparent filter blur-[130px] pointer-events-none animate-pulse" />
+            <div className="absolute bottom-[10%] right-1/4 w-[600px] h-[600px] rounded-full bg-gradient-to-br from-rose-500/10 via-violet-600/5 to-transparent filter blur-[120px] pointer-events-none" />
+            <div className="absolute top-[40%] right-5 w-[400px] h-[400px] rounded-full bg-cyan-500/5 filter blur-[100px] pointer-events-none" />
 
-            {/* ── Header Navbar ────────────────────────────────────────── */}
-            <nav className="relative z-20 flex items-center justify-between px-6 md:px-16 py-6 border-b border-zinc-900 bg-[#070709]/80 backdrop-blur-xl">
-                <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-indigo-500/10">
-                        <Play size={16} fill="white" className="ml-0.5" />
+            {/* ── Top Navigation Bar ─────────────────────────────────── */}
+            <nav className="relative z-20 flex items-center justify-between px-6 md:px-16 py-5 border-b border-zinc-900 bg-[#050506]/75 backdrop-blur-xl">
+                <div className="flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 hover:scale-105 transition-transform duration-300">
+                        <Play size={16} fill="white" className="ml-0.5 text-white" />
                     </div>
                     <div>
-                        <span className="text-sm font-bold tracking-wider uppercase text-white leading-none">SyncRoom</span>
-                        <span className="text-[9px] block text-zinc-500 tracking-wider font-extrabold uppercase mt-0.5">Premium Sync v2</span>
+                        <span className="text-base font-extrabold tracking-tight text-white leading-none">SyncRoom</span>
+                        <span className="text-[10px] block text-indigo-400 tracking-wider font-extrabold uppercase mt-0.5">Aesthetic Edition</span>
                     </div>
                 </div>
-                
-                <div className="flex items-center gap-6">
-                    <span className="text-xs text-zinc-500 hidden sm:inline font-mono">Status: Production Ready</span>
+
+                <div className="flex items-center gap-5">
+                    <span className="text-xs text-zinc-400 font-mono hidden md:inline-flex items-center gap-1.5 bg-zinc-900/60 border border-zinc-800 px-3 py-1.5 rounded-full">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Status: Fully Optimized
+                    </span>
                     <button
                         onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
-                        className="px-4 py-2 text-xs font-semibold text-zinc-300 hover:text-white bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-xl transition-all duration-300 cursor-pointer active:scale-95 shadow-sm"
+                        className="px-5 py-2.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/30 rounded-xl transition-all duration-300 cursor-pointer active:scale-95 shadow-md shadow-indigo-600/20"
                     >
-                        Sign In →
+                        Sign In with Google
                     </button>
                 </div>
             </nav>
 
-            {/* ── Hero / About App Section ─────────────────────────────── */}
-            <section className="relative z-10 flex flex-col items-center text-center px-6 pt-16 md:pt-28 pb-10">
-                <motion.div
-                    initial={{ opacity: 0, y: 40 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-                    className="max-w-4xl"
-                >
-                    {/* Premium Raycast Badge */}
-                    <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full border border-zinc-800/80 bg-zinc-950/60 text-[11px] font-medium text-zinc-400 mb-6 shadow-inner tracking-wider uppercase">
-                        <Command size={12} className="text-indigo-400 animate-pulse" />
-                        <span>Raycast Design Language Loaded</span>
+            {/* ── Hero Segment ────────────────────────────────────────── */}
+            <section className="relative z-10 max-w-6xl mx-auto px-6 pt-16 md:pt-28 pb-12 flex flex-col lg:flex-row items-center gap-12">
+                <div className="flex-1 text-left space-y-6">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/5 text-xs font-bold text-indigo-300 shadow-inner">
+                        <Sparkles size={13} className="text-pink-400 animate-pulse" />
+                        <span>The Ultimate Co-Watching Suite</span>
                     </div>
 
-                    <h1 className="text-5xl sm:text-7xl md:text-[88px] font-extrabold tracking-tight leading-[0.9] mb-8 text-white">
-                        Synchronized media.
+                    <h1 className="text-4xl sm:text-6xl md:text-7xl font-black tracking-tight leading-[1.05] text-white">
+                        Watch Videos
                         <br />
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-400 via-orange-400 to-indigo-400 font-black">
-                            Engineered beautifully.
+                        Together. Synced
+                        <br />
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
+                            In Milliseconds.
                         </span>
                     </h1>
 
-                    <p className="text-sm md:text-base text-zinc-400 max-w-2xl mx-auto leading-relaxed mb-10">
-                        SyncRoom is a high-performance web suite designed for real-time video playback co-watching. 
-                        Equipped with millisecond timeline sync, integrated low-latency camera streaming, 
-                        dynamic local Reels mode, and a shared vector whiteboard.
+                    <p className="text-zinc-400 text-sm md:text-base leading-relaxed max-w-xl">
+                        SyncRoom brings your group video streams, real-time voice, and shared creative vector whiteboards together into a gorgeous, lag-free browser suite. Upload vertical phone Reels, queue YouTube playlists, and co-watch seamlessly with crystal-clear P2P audio and video.
                     </p>
 
-                    {/* Elite Google Button */}
-                    <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
-                        className="inline-flex items-center gap-3 px-8 py-4.5 rounded-2xl bg-white text-black font-extrabold text-sm hover:shadow-[0_0_50px_rgba(99,102,241,0.25)] transition-all duration-300 cursor-pointer border border-zinc-200"
-                    >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src="https://authjs.dev/img/providers/google.svg" alt="Google" className="w-5 h-5" />
-                        Access SyncRoom Dashboard
-                        <ArrowRight size={16} strokeWidth={2.5} />
-                    </motion.button>
-                </motion.div>
-            </section>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-3">
+                        <button
+                            onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+                            className="inline-flex items-center justify-center gap-2.5 px-7 py-4 rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white font-extrabold text-sm hover:shadow-[0_0_40px_rgba(99,102,241,0.3)] hover:scale-[1.01] active:scale-[0.99] transition-all duration-300 cursor-pointer"
+                        >
+                            Open Dashboard Console
+                            <ArrowRight size={16} strokeWidth={2.5} />
+                        </button>
 
-            {/* ── Interactive Command Menu Sandbox (Raycast Feature Tour) ── */}
-            <section className="relative z-10 max-w-5xl mx-auto px-6 py-12">
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    className="text-center mb-8"
-                >
-                    <h2 className="text-2xl font-bold text-white tracking-tight">Interactive Command Menu</h2>
-                    <p className="text-xs text-zinc-500 mt-1 max-w-md mx-auto">
-                        Click different commands inside our custom command simulator below to review SyncRoom&apos;s features in deep technical depth.
-                    </p>
-                </motion.div>
-
-                {/* Raycast Shell Container */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-5 border border-zinc-800/80 bg-zinc-950/60 rounded-3xl p-5 shadow-2xl backdrop-blur-xl relative group">
-                    
-                    {/* Left: Command List Selector */}
-                    <div className="md:col-span-5 flex flex-col border-r border-zinc-900/80 pr-4 space-y-1">
-                        <div className="flex items-center gap-2.5 px-3 py-2 border-b border-zinc-900 mb-2">
-                            <Search size={14} className="text-zinc-500" />
-                            <span className="text-[11px] font-mono text-zinc-500 font-bold uppercase tracking-wider">Raycast Shell Panel</span>
-                        </div>
-
-                        {commandList.map((cmd) => (
+                        <div className="flex items-center justify-between bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800/80">
+                            <div className="pr-4">
+                                <span className="text-[9px] text-zinc-500 block uppercase font-extrabold tracking-wider">Test Invite Code</span>
+                                <span className="text-xs font-mono text-indigo-300 font-bold tracking-widest">ROOM-77X9</span>
+                            </div>
                             <button
-                                key={cmd.id}
-                                onClick={() => setSelectedCommand(cmd.id)}
-                                className={`flex items-center justify-between px-3 py-3 rounded-xl transition-all cursor-pointer text-left ${
-                                    selectedCommand === cmd.id 
-                                        ? "bg-zinc-900 text-white border border-zinc-800 shadow-md scale-[1.01]" 
-                                        : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40 border border-transparent"
+                                onClick={copyDemoCode}
+                                className={`px-3 py-2 rounded-xl text-[10px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                    copiedDemo 
+                                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                                        : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
                                 }`}
                             >
-                                <div className="flex items-center gap-3 min-w-0">
-                                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${
-                                        selectedCommand === cmd.id ? "bg-zinc-800" : "bg-zinc-900/50"
-                                    }`}>
-                                        {cmd.icon}
-                                    </div>
-                                    <div className="min-w-0">
-                                        <h4 className="text-[11px] font-bold truncate leading-tight">{cmd.title}</h4>
-                                        <p className="text-[9px] text-zinc-500 truncate leading-none mt-1">{cmd.subtitle}</p>
-                                    </div>
-                                </div>
-                                <span className="text-[9px] font-mono bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded-md text-zinc-500 font-bold">
-                                    {cmd.shortcut}
-                                </span>
+                                {copiedDemo ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy Code</>}
                             </button>
-                        ))}
-
-                        <div className="pt-4 mt-auto border-t border-zinc-900">
-                            {/* Copyable Demo Room */}
-                            <div className="flex items-center justify-between bg-zinc-950 p-2.5 rounded-xl border border-zinc-900/80">
-                                <div>
-                                    <span className="text-[9px] text-zinc-500 block uppercase font-bold tracking-wider leading-none">Mock Session</span>
-                                    <span className="text-[11px] font-mono text-indigo-300 font-bold">ROOM-77X9</span>
-                                </div>
-                                <button
-                                    onClick={copyDemoCode}
-                                    className={`px-2.5 py-1.5 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                                        copiedDemo 
-                                            ? "bg-emerald-500/10 text-emerald-400" 
-                                            : "bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
-                                    }`}
-                                >
-                                    {copiedDemo ? <><Check size={10} /> Copied</> : <><Copy size={10} /> Copy Code</>}
-                                </button>
-                            </div>
                         </div>
                     </div>
+                </div>
 
-                    {/* Right: Technical In-Depth View */}
-                    <div className="md:col-span-7 flex flex-col justify-between pl-2 min-h-[350px]">
+                {/* Aesthetic Interactive Video Box Simulation */}
+                <div className="flex-1 w-full relative">
+                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-pink-500 rounded-3xl blur-[40px] opacity-10" />
+                    
+                    <div className="relative border border-zinc-800 bg-zinc-950/80 p-4 rounded-3xl shadow-2xl backdrop-blur-xl overflow-hidden">
+                        <div className="flex items-center justify-between border-b border-zinc-900 pb-3 mb-3 text-xs text-zinc-400">
+                            <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                                <span className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
+                                <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                                <span className="ml-1 text-[10px] uppercase font-mono tracking-widest text-indigo-400 font-bold">Room Active</span>
+                            </div>
+                            <span className="font-mono text-[10px] bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded text-zinc-500">
+                                4 Users Connected
+                            </span>
+                        </div>
+
+                        {/* Interactive UI Mock Window */}
+                        <div className="relative aspect-video rounded-2xl overflow-hidden bg-[#0a0a0e] border border-zinc-900 flex items-center justify-center group">
+                            {/* Ambient glowing video mockup */}
+                            <div className="absolute inset-0 bg-cover bg-center opacity-60 filter saturate-150" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800')" }} />
+                            
+                            {/* Floating Camera Feeds Grid Simulation */}
+                            <div className="absolute top-3 right-3 flex flex-col gap-2 z-10">
+                                <div className="w-16 h-12 rounded-lg border border-white/20 overflow-hidden bg-zinc-900/90 shadow-md flex items-center justify-center">
+                                    <div className="w-4 h-4 rounded-full bg-indigo-500/20 border border-indigo-400 animate-pulse flex items-center justify-center text-[7px] text-white">Ad</div>
+                                </div>
+                                <div className="w-16 h-12 rounded-lg border border-white/20 overflow-hidden bg-zinc-900/90 shadow-md flex items-center justify-center">
+                                    <div className="w-4 h-4 rounded-full bg-pink-500/20 border border-pink-400 flex items-center justify-center text-[7px] text-white">Sa</div>
+                                </div>
+                            </div>
+
+                            {/* Whiteboard Mock Vector Draw Lines */}
+                            <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
+                                <motion.path
+                                    d="M 50,80 Q 150,30 250,90 T 350,110"
+                                    fill="none"
+                                    stroke="url(#svg-gradient)"
+                                    strokeWidth="4"
+                                    strokeLinecap="round"
+                                    initial={{ pathLength: 0 }}
+                                    animate={{ pathLength: 1 }}
+                                    transition={{ duration: 3, repeat: Infinity, repeatType: "reverse" }}
+                                />
+                                <defs>
+                                    <linearGradient id="svg-gradient" x1="0" y1="0" x2="1" y2="0">
+                                        <stop offset="0%" stopColor="#818cf8" />
+                                        <stop offset="100%" stopColor="#f472b6" />
+                                    </linearGradient>
+                                </defs>
+                            </svg>
+
+                            {/* Floating Emoji Popups Simulation */}
+                            <div className="absolute bottom-4 left-4 z-20 flex gap-1.5">
+                                <motion.span 
+                                    className="text-lg" 
+                                    animate={{ y: [-10, -80], opacity: [0, 1, 0] }} 
+                                    transition={{ duration: 2.5, repeat: Infinity }}
+                                >
+                                    🔥
+                                </motion.span>
+                                <motion.span 
+                                    className="text-lg" 
+                                    animate={{ y: [-5, -60], opacity: [0, 1, 0] }} 
+                                    transition={{ duration: 2, delay: 0.5, repeat: Infinity }}
+                                >
+                                    😂
+                                </motion.span>
+                                <motion.span 
+                                    className="text-lg" 
+                                    animate={{ y: [-8, -75], opacity: [0, 1, 0] }} 
+                                    transition={{ duration: 2.8, delay: 1, repeat: Infinity }}
+                                >
+                                    ❤️
+                                </motion.span>
+                            </div>
+
+                            <Play size={36} fill="white" className="text-white relative z-15 drop-shadow-md cursor-pointer hover:scale-110 transition-transform" />
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* ── Visual Architecture Overview ─────────────────────────── */}
+            <section className="relative z-10 max-w-5xl mx-auto px-6 py-12">
+                <div className="border border-zinc-900 bg-zinc-950/40 rounded-3xl p-6 md:p-8 backdrop-blur-md">
+                    <div className="text-center mb-8">
+                        <span className="text-xs uppercase font-black text-indigo-400 tracking-wider">System Flow</span>
+                        <h3 className="text-2xl font-black text-white mt-1">Real-Time Core Architecture</h3>
+                        <p className="text-xs text-zinc-400 max-w-md mx-auto mt-2 leading-relaxed">
+                            SyncRoom maps and syncs assets instantly. Review our pipeline mapping model below:
+                        </p>
+                    </div>
+
+                    {/* Architectural Flow Layout */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+                        <div className="bg-zinc-900/40 border border-zinc-800 p-5 rounded-2xl relative space-y-2 group hover:border-indigo-500/30 transition-colors">
+                            <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto">
+                                <Layers size={16} />
+                            </div>
+                            <h4 className="text-xs font-extrabold uppercase text-white tracking-wide">1. Central Socket Controller</h4>
+                            <p className="text-[11px] text-zinc-400 leading-normal">
+                                Intercepts HTML5 media triggers, generates time logs, and pipes millisecond coordinate events to all active connected browsers.
+                            </p>
+                        </div>
+                        <div className="bg-zinc-900/40 border border-zinc-800 p-5 rounded-2xl relative space-y-2 group hover:border-purple-500/30 transition-colors">
+                            <div className="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center mx-auto">
+                                <Video size={16} />
+                            </div>
+                            <h4 className="text-xs font-extrabold uppercase text-white tracking-wide">2. WebRTC P2P Media Loop</h4>
+                            <p className="text-[11px] text-zinc-400 leading-normal">
+                                Establishes low-latency voice and video grids, complete with high-priority moderator mute tools and hand raised visual cues.
+                            </p>
+                        </div>
+                        <div className="bg-zinc-900/40 border border-zinc-800 p-5 rounded-2xl relative space-y-2 group hover:border-pink-500/30 transition-colors">
+                            <div className="w-9 h-9 rounded-xl bg-pink-500/10 text-pink-400 flex items-center justify-center mx-auto">
+                                <Edit3 size={16} />
+                            </div>
+                            <h4 className="text-xs font-extrabold uppercase text-white tracking-wide">3. SVG Drawing Pipeline</h4>
+                            <p className="text-[11px] text-zinc-400 leading-normal">
+                                Tracks vector strokes, broadcasts points globally, and renders real-time sketch lines directly over standard co-streaming elements.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* ── Deep-Dive Interactive Features Segment ───────────────── */}
+            <section className="relative z-10 max-w-5xl mx-auto px-6 py-16">
+                <div className="text-center mb-12">
+                    <span className="text-xs uppercase font-extrabold text-pink-400 tracking-widest block mb-1.5">Deep Feature Presentation</span>
+                    <h2 className="text-3xl sm:text-4xl font-extrabold text-white">Built for Hardware-Accelerated Performance</h2>
+                    <p className="text-xs text-zinc-500 max-w-lg mx-auto mt-2 leading-relaxed">
+                        SyncRoom is built without heavy frames or bloated modules. Review each key system component in deep detail:
+                    </p>
+                </div>
+
+                {/* Dynamic Tab Switcher */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    
+                    {/* Left: Tab Selectors */}
+                    <div className="lg:col-span-5 flex flex-col gap-2.5">
+                        {deepFeatures.map((feat, idx) => {
+                            const isActive = activeFeature === idx;
+                            return (
+                                <button
+                                    key={idx}
+                                    onClick={() => setActiveFeature(idx)}
+                                    className={`w-full flex items-center justify-between p-4 rounded-2xl border text-left cursor-pointer transition-all duration-300 ${
+                                        isActive 
+                                            ? "bg-zinc-900 border-zinc-800 shadow-lg text-white scale-[1.01]" 
+                                            : "border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/30"
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-3.5 min-w-0">
+                                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-zinc-950 border border-zinc-900`}>
+                                            {feat.icon}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <h4 className="text-xs font-bold leading-tight">{feat.title}</h4>
+                                            <p className="text-[10px] text-zinc-500 truncate leading-none mt-1">{feat.subtitle}</p>
+                                        </div>
+                                    </div>
+                                    <ArrowRight size={12} className={`transition-transform duration-300 ${isActive ? "text-indigo-400 translate-x-1" : "text-zinc-600"}`} />
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {/* Right: Technical Spec Card */}
+                    <div className="lg:col-span-7">
                         <AnimatePresence mode="wait">
                             <motion.div
-                                key={selectedCommand}
-                                initial={{ opacity: 0, x: 15 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -15 }}
-                                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                                className="space-y-4"
+                                key={activeFeature}
+                                initial={{ opacity: 0, y: 15 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -15 }}
+                                transition={{ duration: 0.35 }}
+                                className="bg-gradient-to-br from-zinc-950 to-zinc-900 border border-zinc-800/80 p-6 md:p-8 rounded-3xl shadow-xl flex flex-col justify-between min-h-[380px] relative overflow-hidden"
                             >
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[9px] uppercase font-mono bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-md font-bold tracking-wider border border-indigo-500/20">
-                                        {commandDetails[selectedCommand].pill}
-                                    </span>
-                                    <span className="text-[9px] uppercase font-mono bg-zinc-900 text-zinc-400 px-2 py-0.5 rounded-md font-bold border border-zinc-800">
-                                        Raycast Engine
-                                    </span>
-                                </div>
+                                {/* Glowing corner orb specific to active gradient */}
+                                <div className={`absolute top-0 right-0 w-24 h-24 rounded-full bg-gradient-to-br ${deepFeatures[activeFeature].gradient} blur-[50px] opacity-25`} />
 
-                                <h3 className="text-xl font-bold text-white tracking-tight leading-snug">
-                                    {commandDetails[selectedCommand].title}
-                                </h3>
+                                <div className="space-y-5">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-sm">
+                                            {deepFeatures[activeFeature].badge}
+                                        </span>
+                                        <span className="text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-zinc-900 text-zinc-400 border border-zinc-800">
+                                            SyncRoom Core
+                                        </span>
+                                    </div>
 
-                                <p className="text-xs text-zinc-400 leading-relaxed">
-                                    {commandDetails[selectedCommand].desc}
-                                </p>
+                                    <h3 className="text-xl sm:text-2xl font-black text-white leading-snug">
+                                        {deepFeatures[activeFeature].title}
+                                    </h3>
 
-                                <div className="p-3 bg-zinc-900/30 border border-zinc-900 rounded-xl space-y-2">
-                                    <span className="text-[9px] font-bold uppercase text-indigo-300 tracking-wider block">Key Highlights</span>
-                                    <p className="text-[11px] text-zinc-400 leading-normal">
-                                        {commandDetails[selectedCommand].highlight}
+                                    <p className="text-xs text-zinc-400 leading-relaxed">
+                                        {deepFeatures[activeFeature].desc}
                                     </p>
+
+                                    <div className="p-4 rounded-2xl bg-zinc-950/80 border border-zinc-900/80 text-[11px] leading-relaxed text-zinc-300">
+                                        <span className="font-extrabold text-zinc-400 uppercase tracking-widest text-[9px] block mb-1.5 flex items-center gap-1.5">
+                                            <Info size={11} className="text-indigo-400" /> System Architecture Detail
+                                        </span>
+                                        Ideal for remote watching, sketching overlays, co-gaming, and hosting coordinated webinars.
+                                    </div>
                                 </div>
 
-                                <div className="space-y-1.5 pt-2">
-                                    <span className="text-[9px] font-bold uppercase text-zinc-500 tracking-wider block">System Stack Stack</span>
+                                <div className="space-y-2 pt-4 border-t border-zinc-900/85 mt-4">
+                                    <span className="text-[9px] font-bold uppercase text-zinc-500 tracking-wider block">Tech Stack Modules</span>
                                     <div className="flex flex-wrap gap-1.5">
-                                        {commandDetails[selectedCommand].tech.map((techItem) => (
+                                        {deepFeatures[activeFeature].tech.map((techItem) => (
                                             <span 
                                                 key={techItem} 
-                                                className="text-[9px] font-mono bg-zinc-900/60 border border-zinc-900 px-2 py-1 rounded-lg text-zinc-350"
+                                                className="text-[10px] font-mono bg-zinc-900 border border-zinc-850 px-2.5 py-1 rounded-lg text-zinc-300 font-medium"
                                             >
                                                 {techItem}
                                             </span>
@@ -335,190 +420,82 @@ export default function Home() {
                                 </div>
                             </motion.div>
                         </AnimatePresence>
-
-                        <div className="flex items-center justify-between border-t border-zinc-900 pt-4 mt-4">
-                            <span className="text-[10px] text-zinc-500 font-medium">Use up/down arrow buttons on mock list to toggle</span>
-                            <button
-                                onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
-                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-600/10 cursor-pointer active:scale-95"
-                            >
-                                Launch Sandbox
-                            </button>
-                        </div>
                     </div>
 
                 </div>
             </section>
 
-            {/* ── Interactive Keyboard Sandbox ───────────────────────── */}
-            <section className="relative z-10 max-w-5xl mx-auto px-6 py-12">
-                <div className="border border-zinc-800/80 bg-zinc-950/40 rounded-3xl p-6 shadow-xl backdrop-blur-md">
-                    <div className="text-center mb-6">
-                        <span className="text-[9px] uppercase font-bold text-zinc-500 tracking-widest block mb-1">Tactile Control System</span>
-                        <h3 className="text-lg font-bold text-white">Interactive Keyboard Shortcuts Simulator</h3>
-                        <p className="text-xs text-zinc-400 mt-1 max-w-md mx-auto">
-                            Press these physical keys on your keyboard right now, or click them below to see room commands flash!
-                        </p>
-                    </div>
-
-                    <div className="flex flex-wrap justify-center gap-3 max-w-2xl mx-auto">
-                        {[
-                            { key: "M", label: "Toggle Microphone Input" },
-                            { key: "C", label: "Toggle Camera Capture" },
-                            { key: "W", label: "Open Sync Vector Whiteboard" },
-                            { key: "P", label: "Create Immediate Live Poll" },
-                            { key: "F", label: "Trigger Video Fullscreen" }
-                        ].map((item) => {
-                            const isActive = keyPressed === item.key;
-                            return (
-                                <button
-                                    key={item.key}
-                                    onClick={() => {
-                                        setKeyPressed(item.key);
-                                        setTimeout(() => setKeyPressed(null), 1000);
-                                    }}
-                                    className={`flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 text-left min-w-[200px] cursor-pointer ${
-                                        isActive 
-                                            ? "bg-indigo-500/10 border-indigo-500 text-indigo-400 scale-[1.03] shadow-[0_0_20px_rgba(99,102,241,0.15)]" 
-                                            : "bg-zinc-900/60 border-zinc-800/50 text-zinc-350 hover:bg-zinc-900"
-                                    }`}
-                                >
-                                    <kbd className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono font-black text-xs border transition-all ${
-                                        isActive 
-                                            ? "bg-indigo-600 border-indigo-400 text-white shadow-md" 
-                                            : "bg-zinc-950 border-zinc-800 text-zinc-400"
-                                    }`}>
-                                        {item.key}
-                                    </kbd>
-                                    <div>
-                                        <span className="text-[10px] uppercase font-extrabold text-zinc-500 block leading-none">Shortcut</span>
-                                        <span className="text-[11px] font-bold text-zinc-300 mt-0.5 block leading-tight">{item.label}</span>
-                                    </div>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            </section>
-
-            {/* ── Scroll Reveal Feature Breakdown Sections ─────────────── */}
-            <section className="relative z-10 max-w-5xl mx-auto px-6 py-12 space-y-16">
-                
-                {/* Scroll Reveal Section Header */}
-                <div className="text-center py-6">
-                    <span className="text-xs font-mono text-indigo-400 uppercase tracking-widest font-black">Under the Hood</span>
-                    <h2 className="text-3xl font-extrabold text-white mt-1">Deep-Dive Component Architecture</h2>
-                    <p className="text-xs text-zinc-500 max-w-md mx-auto mt-1">
-                        Each individual pipeline is custom-coded using lightweight Web APIs for premium, hardware-accelerated performance.
+            {/* ── Interactive Clicking FAQ Accordion ───────────────────── */}
+            <section className="relative z-10 max-w-4xl mx-auto px-6 py-12">
+                <div className="text-center mb-10">
+                    <span className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center mx-auto text-indigo-400 mb-2">
+                        <HelpCircle size={16} />
+                    </span>
+                    <h3 className="text-2xl font-black text-white">Frequently Asked Questions</h3>
+                    <p className="text-xs text-zinc-400 mt-1">
+                        Click on any question below to expand the detailed technical explanation.
                     </p>
                 </div>
 
-                {/* Grid of in-depth details */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    
-                    {/* Card 1 */}
-                    <motion.div 
-                        initial={{ opacity: 0, y: 25 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.6 }}
-                        className="p-6 rounded-3xl border border-zinc-800/80 bg-zinc-950/40 space-y-4 hover:border-zinc-700/60 transition-all duration-300 group"
-                    >
-                        <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 group-hover:scale-105 transition-all">
-                            <Zap size={18} />
-                        </div>
-                        <div>
-                            <span className="text-[9px] uppercase font-bold text-zinc-500 tracking-wider">Engine Synchronization</span>
-                            <h3 className="text-lg font-bold text-white mt-0.5">Millisecond Playback Core</h3>
-                            <p className="text-xs text-zinc-400 leading-relaxed mt-2">
-                                Rather than using heavy frames or polling loops, SyncRoom employs high-frequency WebSocket sync events. Play, Pause, and Seek coordinates sync across all connected clients in real-time. If buffers drift, the engine interpolates timelines smoothly to maintain co-watching accuracy without audio jitter.
-                            </p>
-                        </div>
-                    </motion.div>
-
-                    {/* Card 2 */}
-                    <motion.div 
-                        initial={{ opacity: 0, y: 25 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.6, delay: 0.1 }}
-                        className="p-6 rounded-3xl border border-zinc-800/80 bg-zinc-950/40 space-y-4 hover:border-zinc-700/60 transition-all duration-300 group"
-                    >
-                        <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-all">
-                            <Laptop size={18} />
-                        </div>
-                        <div>
-                            <span className="text-[9px] uppercase font-bold text-zinc-500 tracking-wider">Media Adaptive Layout</span>
-                            <h3 className="text-lg font-bold text-white mt-0.5">Adaptive Vertical & Landscape Sharing</h3>
-                            <p className="text-xs text-zinc-400 leading-relaxed mt-2">
-                                Seamlessly upload local media files directly. The platform detects the resolution of the uploaded video dynamically. Horizontal videos render in clean widescreen aspect ratios, while vertical videos (Reels/Shorts) snap to a custom phone-bezel container with glowing background illumination.
-                            </p>
-                        </div>
-                    </motion.div>
-
-                    {/* Card 3 */}
-                    <motion.div 
-                        initial={{ opacity: 0, y: 25 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.6 }}
-                        className="p-6 rounded-3xl border border-zinc-800/80 bg-zinc-950/40 space-y-4 hover:border-zinc-700/60 transition-all duration-300 group"
-                    >
-                        <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 group-hover:scale-105 transition-all">
-                            <Edit3 size={18} />
-                        </div>
-                        <div>
-                            <span className="text-[9px] uppercase font-bold text-zinc-500 tracking-wider">Collaborative Tools</span>
-                            <h3 className="text-lg font-bold text-white mt-0.5">Real-time Collaborative Whiteboard</h3>
-                            <p className="text-xs text-zinc-400 leading-relaxed mt-2">
-                                Draw directly on top of streaming videos in real time. Our canvas vector engine maps every single mark into light coordinates that replicate instantaneously across all peer frames. Clear, erase, and draw toggles are integrated smoothly for ultimate user synergy.
-                            </p>
-                        </div>
-                    </motion.div>
-
-                    {/* Card 4 */}
-                    <motion.div 
-                        initial={{ opacity: 0, y: 25 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.6, delay: 0.1 }}
-                        className="p-6 rounded-3xl border border-zinc-800/80 bg-zinc-950/40 space-y-4 hover:border-zinc-700/60 transition-all duration-300 group"
-                    >
-                        <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 group-hover:scale-105 transition-all">
-                            <Video size={18} />
-                        </div>
-                        <div>
-                            <span className="text-[9px] uppercase font-bold text-zinc-500 tracking-wider">Moderation Controls</span>
-                            <h3 className="text-lg font-bold text-white mt-0.5">Administrative Controls & Voice Grid</h3>
-                            <p className="text-xs text-zinc-400 leading-relaxed mt-2">
-                                Experience low-latency WebRTC co-voice grids. Integrated host administration options let the room creator click to lower raised hands globally or execute force-mute actions to maintain absolute meeting order.
-                            </p>
-                        </div>
-                    </motion.div>
-
+                <div className="space-y-3">
+                    {faqItems.map((item, idx) => {
+                        const isExpanded = expandedFaq === idx;
+                        return (
+                            <div 
+                                key={idx}
+                                className="border border-zinc-900 bg-zinc-950/60 rounded-2xl overflow-hidden transition-all duration-300"
+                            >
+                                <button
+                                    onClick={() => setExpandedFaq(isExpanded ? null : idx)}
+                                    className="w-full flex items-center justify-between p-5 text-left font-semibold text-xs sm:text-sm text-zinc-100 hover:text-white transition-colors cursor-pointer select-none"
+                                >
+                                    <span className="pr-4">{item.q}</span>
+                                    <ChevronDown 
+                                        size={16} 
+                                        className={`text-zinc-500 shrink-0 transition-transform duration-300 ${isExpanded ? "transform rotate-180 text-indigo-400" : ""}`} 
+                                    />
+                                </button>
+                                
+                                <AnimatePresence initial={false}>
+                                    {isExpanded && (
+                                        <motion.div
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: "auto", opacity: 1 }}
+                                            exit={{ height: 0, opacity: 0 }}
+                                            transition={{ duration: 0.25, ease: "easeInOut" }}
+                                        >
+                                            <div className="px-5 pb-5 pt-1 text-xs text-zinc-400 leading-relaxed border-t border-zinc-900/60 bg-zinc-950/20">
+                                                {item.a}
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        );
+                    })}
                 </div>
             </section>
 
             {/* ── Footer ───────────────────────────────────────────────── */}
-            <footer className="relative z-10 border-t border-zinc-900 bg-[#070709] py-12 px-6 text-center">
+            <footer className="relative z-10 border-t border-zinc-900 bg-[#050506] py-12 px-6 text-center">
                 <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
                     <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-lg bg-indigo-500 flex items-center justify-center">
-                            <Play size={10} fill="white" className="ml-0.5" />
+                        <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center">
+                            <Play size={11} fill="white" className="ml-0.5 text-white" />
                         </div>
-                        <span className="text-xs font-bold text-white uppercase tracking-wider">SyncRoom</span>
+                        <span className="text-xs font-extrabold text-white uppercase tracking-wider">SyncRoom</span>
                     </div>
 
-                    <p className="text-[10px] text-zinc-600 font-mono">
-                        Handcrafted with precision using Next.js 14, WebRTC, Framer Motion, and PeerJS &middot; © {new Date().getFullYear()}
+                    <p className="text-[10px] text-zinc-500 font-mono">
+                        Handcrafted with precision using Next.js 14, WebRTC, PeerJS, and Socket.IO &middot; © {new Date().getFullYear()}
                     </p>
 
                     <div className="flex gap-4">
                         <button 
                             onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
-                            className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors uppercase tracking-wider font-bold"
+                            className="text-[10px] text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-wider font-extrabold cursor-pointer"
                         >
-                            Open App
+                            Open Dashboard Console
                         </button>
                     </div>
                 </div>
