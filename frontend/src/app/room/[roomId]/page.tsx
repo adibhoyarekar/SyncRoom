@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { io, Socket } from "socket.io-client";
 import { useRoomStore } from "@/store/useRoomStore";
 import { Button } from "@/components/ui/button";
-import { LogOut, Mic, MicOff, Video, VideoOff, MonitorUp, Users as UsersIcon, MessageSquare, Copy, Check, Play, Share2, Link2, WifiOff, Settings } from "lucide-react";
+import { LogOut, Mic, MicOff, Video, VideoOff, MonitorUp, Users as UsersIcon, MessageSquare, Copy, Check, Play, Share2, Link2, WifiOff, Settings, Hand } from "lucide-react";
 import EmojiReactions from "@/components/EmojiReactions";
 import {
     Dialog,
@@ -25,6 +25,7 @@ import { ToastAction } from "@/components/ui/toast";
 import RoomTour from "@/components/RoomTour";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import SettingsModal from "@/components/SettingsModal";
+import HostControls from "@/components/HostControls";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000";
 
@@ -40,6 +41,7 @@ export default function RoomPage() {
     const [isMuted, setIsMuted] = useState(true);
     const [isVideoOn, setIsVideoOn] = useState(false);
     const [isScreenSharing, setIsScreenSharing] = useState(false);
+    const [isHandRaised, setIsHandRaised] = useState(false);
     const [copied, setCopied] = useState(false);
     const [showShareDialog, setShowShareDialog] = useState(false);
     const [copiedLink, setCopiedLink] = useState(false);
@@ -52,8 +54,10 @@ export default function RoomPage() {
     // UI Toggles
     const [showSidebar, setShowSidebar] = useState<"chat" | "participants" | null>("chat");
 
-    const { setUsers, addUser, removeUser, addMessage, updateUser, setVideoQueue } = useRoomStore();
+    const { users, setUsers, addUser, removeUser, addMessage, updateUser, setVideoQueue } = useRoomStore();
     const { shortcuts } = useSettingsStore();
+
+    const isOwner = users.find(u => u.id === socket?.id)?.isOwner ?? false;
 
     // Refs to hold the latest toggle state so the WebRTC hook's recovery
     // handler can read them without creating new listener registrations.
@@ -67,6 +71,11 @@ export default function RoomPage() {
     const { localStream, toggleScreenShare, ensureVideoTrack } = useWebRTC(
         roomId as string, socketId, isMutedRef, isVideoOnRef
     );
+
+    const localStreamRef = useRef<MediaStream | null>(null);
+    useEffect(() => {
+        localStreamRef.current = localStream || null;
+    }, [localStream]);
 
     // ── No secondary sync needed ────────────────────────────────────────
     // recoverMedia (in useWebRTC) handles all track recovery on tab return
@@ -159,6 +168,24 @@ export default function RoomPage() {
         // Video Queue sync
         newSocket.on("queue-updated", ({ queue }: { queue: string[] }) => {
             setVideoQueue(queue);
+        });
+
+        // Host Controls
+        newSocket.on("force-mute", () => {
+            setIsMuted(true);
+            if (localStreamRef.current) {
+                localStreamRef.current.getAudioTracks().forEach(track => track.enabled = false);
+            }
+            newSocket.emit("toggle-mic", { roomId, userId: newSocket.id, isMuted: true });
+        });
+
+        newSocket.on("hand-toggled", ({ userId, isHandRaised }: { userId: string, isHandRaised: boolean }) => {
+            updateUser(userId, { isHandRaised });
+        });
+
+        newSocket.on("hands-lowered", () => {
+            setIsHandRaised(false);
+            useRoomStore.getState().users.forEach(u => updateUser(u.id, { isHandRaised: false }));
         });
 
         // Auto-reconnect — re-join room after socket reconnects
@@ -302,6 +329,16 @@ export default function RoomPage() {
         }
     }, [localStream, socketId, socket, roomId, updateUser, ensureVideoTrack]);
 
+    const toggleHand = useCallback(() => {
+        setIsHandRaised(prev => {
+            const next = !prev;
+            if (socket) {
+                socket.emit("toggle-hand", { roomId, isHandRaised: next });
+            }
+            return next;
+        });
+    }, [socket, roomId]);
+
     const handleScreenShare = useCallback(async () => {
         const targetState = !isScreenSharing;
         const result = await toggleScreenShare(targetState, () => {
@@ -404,6 +441,7 @@ export default function RoomPage() {
                             <MessageSquare size={16} />
                             <span className="hidden sm:inline text-xs">Chat</span>
                         </Button>
+                        {isOwner && <HostControls socket={socket} roomId={roomId as string} />}
                         <Button
                             variant="ghost"
                             size="sm"
@@ -514,6 +552,17 @@ export default function RoomPage() {
                             }`}
                         >
                         <MonitorUp size={18} />
+                        </button>
+                        <button
+                            onClick={toggleHand}
+                            className={`h-11 w-11 rounded-full flex items-center justify-center transition-all duration-200 ${
+                                isHandRaised
+                                    ? "bg-yellow-500 hover:bg-yellow-600 text-white shadow-lg shadow-yellow-500/20"
+                                    : "bg-zinc-800 hover:bg-zinc-700 text-zinc-200"
+                            }`}
+                            title={isHandRaised ? "Lower Hand" : "Raise Hand"}
+                        >
+                            <Hand size={18} />
                         </button>
                     </div>
 

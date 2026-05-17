@@ -20,7 +20,8 @@ export default function initSocket(io) {
             const enhancedUser = {
                 ...user,
                 isOwner: isFirstUser,
-                isPrimaryOwner: isFirstUser
+                isPrimaryOwner: isFirstUser,
+                isHandRaised: false
             };
 
             roomUsers.set(socket.id, enhancedUser);
@@ -198,6 +199,44 @@ export default function initSocket(io) {
         socket.on('force-mute', ({ roomId, targetSocketId }) => {
             if (isUserOwner(roomId, socket.id)) {
                 io.to(targetSocketId).emit('force-mute');
+            }
+        });
+
+        socket.on('force-mute-all', ({ roomId }) => {
+            if (isUserOwner(roomId, socket.id)) {
+                const roomUsers = rooms.get(roomId);
+                if (roomUsers) {
+                    for (const [id, u] of roomUsers.entries()) {
+                        // Don't mute the owner who triggered it
+                        if (id !== socket.id) {
+                            io.to(id).emit('force-mute');
+                        }
+                    }
+                }
+            }
+        });
+
+        // Raise Hand
+        socket.on('toggle-hand', ({ roomId, isHandRaised }) => {
+            const roomUsers = rooms.get(roomId);
+            if (roomUsers && roomUsers.has(socket.id)) {
+                const user = roomUsers.get(socket.id);
+                user.isHandRaised = isHandRaised;
+                roomUsers.set(socket.id, user);
+            }
+            socket.to(roomId).emit('hand-toggled', { userId: socket.id, isHandRaised });
+        });
+
+        socket.on('lower-all-hands', ({ roomId }) => {
+            if (isUserOwner(roomId, socket.id)) {
+                const roomUsers = rooms.get(roomId);
+                if (roomUsers) {
+                    for (const [id, u] of roomUsers.entries()) {
+                        u.isHandRaised = false;
+                        roomUsers.set(id, u);
+                    }
+                    io.to(roomId).emit('hands-lowered');
+                }
             }
         });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRoomStore } from "@/store/useRoomStore";
-import { MicOff, VideoOff } from "lucide-react";
+import { MicOff, VideoOff, Hand } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useRef } from "react";
 
@@ -141,6 +141,13 @@ export default function CameraGrid({ currentUserId }: { currentUserId: string })
                             not by unmounting the audio element. */}
                         {!isLocal && user.stream && (
                             <AudioTile stream={user.stream} />
+                        )}
+
+                        {/* Hand Raised Indicator */}
+                        {user.isHandRaised && (
+                            <div className="absolute top-1 left-1 bg-zinc-900/80 p-1 rounded-md shadow-lg border border-yellow-500/30 animate-pulse z-10">
+                                <Hand size={12} className="text-yellow-500 fill-yellow-500" />
+                            </div>
                         )}
 
                         {/* Status indicators */}

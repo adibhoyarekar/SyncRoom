@@ -9,6 +9,7 @@ interface User {
     stream?: MediaStream;
     isOwner?: boolean;
     isPrimaryOwner?: boolean;
+    isHandRaised?: boolean;
 }
 
 interface Message {
