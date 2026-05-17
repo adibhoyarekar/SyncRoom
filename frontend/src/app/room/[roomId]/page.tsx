@@ -429,26 +429,26 @@ export default function RoomPage() {
 
     if (status === "loading" || !socket) {
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950 text-white gap-4">
+            <div className="min-h-screen flex flex-col items-center justify-center bg-[#070709] text-white gap-4 noise">
                 <div className="relative w-12 h-12">
                     <div className="absolute inset-0 rounded-full border-2 border-indigo-500/30 animate-ping" />
                     <div className="absolute inset-0 rounded-full border-2 border-t-indigo-500 animate-spin" />
                 </div>
-                <p className="text-sm text-zinc-400 font-medium">Connecting to room...</p>
+                <p className="text-sm text-zinc-400 font-mono animate-pulse uppercase tracking-widest">Connecting to room...</p>
             </div>
         );
     }
 
     return (
-        <div className="h-screen flex flex-col bg-[#09090b] text-white overflow-hidden">
+        <div className="h-screen flex flex-col bg-[#070709] text-white overflow-hidden noise">
             {/* ── Top Navigation Bar ─────────────────────────────────── */}
-            <header className="border-b border-zinc-800/40 shrink-0 z-10">
+            <header className="border-b border-zinc-900 bg-[#070709]/80 backdrop-blur-xl shrink-0 z-10">
                 <div className="h-13 flex items-center justify-between px-5">
                     <div className="flex items-center gap-3">
-                        <div className="w-7 h-7 rounded-lg bg-indigo-500 flex items-center justify-center">
+                        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-indigo-500/10">
                             <Play size={12} fill="white" className="ml-0.5" />
                         </div>
-                        <h1 className="text-base font-bold tracking-tight">
+                        <h1 className="text-base font-bold tracking-tight text-white">
                             {roomName || "SyncRoom"}
                         </h1>
                     </div>
@@ -657,7 +657,7 @@ export default function RoomPage() {
 
                 {/* ── Sidebar ────────────────────────────────────────── */}
                 {showSidebar && (
-                    <aside className={`border-l border-zinc-800/40 flex flex-col shrink-0 z-10 tour-sidebar transition-all duration-300 ease-out ${
+                    <aside className={`border-l border-zinc-900 bg-[#070709]/80 backdrop-blur-xl flex flex-col shrink-0 z-10 tour-sidebar transition-all duration-300 ease-out ${
                         showSidebar === "queue" && queueTab === "search" ? "w-[560px]" : "w-[340px]"
                     }`}>
                         {showSidebar === "chat" ? (
