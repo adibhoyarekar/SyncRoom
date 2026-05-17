@@ -68,7 +68,8 @@ export default function SettingsModal({ open, onOpenChange }: SettingsModalProps
                                     {action === "camera" ? "Toggle Camera" : 
                                      action === "mute" ? "Toggle Microphone" : 
                                      action === "fullscreen" ? "Toggle Fullscreen" : 
-                                     action === "whiteboard" ? "Toggle Whiteboard" : "Toggle Chat"}
+                                     action === "whiteboard" ? "Toggle Whiteboard" : 
+                                     action === "polls" ? "Toggle Polls & Q&A" : "Toggle Chat"}
                                 </span>
                                 <button
                                     onClick={() => setListeningFor(action)}

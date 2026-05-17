@@ -8,6 +8,7 @@ interface SettingsStore {
         fullscreen: string;
         chat: string;
         whiteboard: string;
+        polls: string;
     };
     setShortcut: (action: keyof SettingsStore["shortcuts"], key: string) => void;
 }
@@ -21,6 +22,7 @@ export const useSettingsStore = create<SettingsStore>()(
                 fullscreen: "f",
                 chat: "c",
                 whiteboard: "w",
+                polls: "p",
             },
             setShortcut: (action, key) =>
                 set((state) => ({

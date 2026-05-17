@@ -386,6 +386,12 @@ export default function RoomPage() {
             } else if (key === shortcuts.camera) {
                 e.preventDefault();
                 toggleCamera();
+            } else if (key === shortcuts.polls) {
+                e.preventDefault();
+                setShowSidebar(prev => prev === "polls" ? null : "polls");
+            } else if (key === shortcuts.chat) {
+                e.preventDefault();
+                setShowSidebar(prev => prev === "chat" ? null : "chat");
             } else if (key === shortcuts.fullscreen) {
                 if (!e.ctrlKey && !e.metaKey) {
                     e.preventDefault();
@@ -625,6 +631,10 @@ export default function RoomPage() {
                         <div className="flex items-center gap-2">
                             <kbd className="px-2 py-1 bg-zinc-800 border border-zinc-700/50 rounded-md text-[10px] font-mono text-zinc-300 shadow-sm uppercase min-w-[24px] text-center">{shortcuts.whiteboard}</kbd>
                             <span className="text-[11px] text-zinc-500 font-medium">Whiteboard</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <kbd className="px-2 py-1 bg-zinc-800 border border-zinc-700/50 rounded-md text-[10px] font-mono text-zinc-300 shadow-sm uppercase min-w-[24px] text-center">{shortcuts.polls}</kbd>
+                            <span className="text-[11px] text-zinc-500 font-medium">Polls & Q&A</span>
                         </div>
                     </div>
                 </main>
