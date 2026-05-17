@@ -196,6 +196,17 @@ export default function initSocket(io) {
             socket.to(roomId).emit('user-toggled-camera', { userId, isVideoOn });
         });
 
+        socket.on('update-profile', ({ roomId, name, image }) => {
+            const roomUsers = rooms.get(roomId);
+            if (roomUsers && roomUsers.has(socket.id)) {
+                const user = roomUsers.get(socket.id);
+                if (name) user.name = name;
+                if (image !== undefined) user.image = image;
+                roomUsers.set(socket.id, user);
+                io.to(roomId).emit('user-profile-updated', { socketId: socket.id, name, image });
+            }
+        });
+
         // Owner Controls
         socket.on('kick-user', ({ roomId, targetSocketId }) => {
             if (isUserOwner(roomId, socket.id)) {

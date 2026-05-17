@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { io, Socket } from "socket.io-client";
 import { useRoomStore } from "@/store/useRoomStore";
 import { Button } from "@/components/ui/button";
-import { LogOut, Mic, MicOff, Video, VideoOff, MonitorUp, Users as UsersIcon, MessageSquare, Copy, Check, Play, Share2, Link2, WifiOff, Settings, Hand, Vote, ListVideo } from "lucide-react";
+import { LogOut, Mic, MicOff, Video, VideoOff, MonitorUp, Users as UsersIcon, MessageSquare, Copy, Check, Play, Share2, Link2, WifiOff, Settings, Hand, Vote, ListVideo, User } from "lucide-react";
 import EmojiReactions from "@/components/EmojiReactions";
 import {
     Dialog,
@@ -28,6 +28,7 @@ import SettingsModal from "@/components/SettingsModal";
 import HostControls from "@/components/HostControls";
 import PollsPanel from "@/components/PollsPanel";
 import QueuePanel from "@/components/QueuePanel";
+import ProfileModal from "@/components/ProfileModal";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000";
 
@@ -94,6 +95,11 @@ export default function RoomPage() {
         }
     }, [socketId, updateUser]);
 
+    // Custom profile state inside the room
+    const [showProfileModal, setShowProfileModal] = useState(false);
+    const [profileName, setProfileName] = useState("");
+    const [profileImage, setProfileImage] = useState("");
+
     useEffect(() => {
         if (status === "unauthenticated") {
             router.push("/");
@@ -102,189 +108,222 @@ export default function RoomPage() {
 
         if (!session?.user) return;
 
-        const newSocket = io(SOCKET_URL, {
-            withCredentials: true,
-            reconnection: true,
-            reconnectionAttempts: Infinity,
-            reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000,
-        });
-        setSocket(newSocket);
+        let activeSocket: Socket | null = null;
 
-        newSocket.on("connect", () => {
-            if (newSocket.id) {
-                setSocketId(newSocket.id);
-                newSocket.emit("join-room", {
-                    roomId,
-                    user: {
-                        name: session?.user?.name || "Guest",
-                        image: session?.user?.image || "",
-                        isMuted: true,
-                        isVideoOn: false,
-                    }
-                });
+        const connectAndJoin = async () => {
+            let finalName = session.user?.name || "Guest";
+            let finalImage = session.user?.image || "";
 
-
-                // Record recent room in backend
-                if (session?.user?.email) {
+            if (session.user?.email) {
+                try {
                     const apiUrl = process.env.NEXT_PUBLIC_SOCKET_URL?.replace(/\/$/, '') || "http://localhost:4000";
-                    fetch(`${apiUrl}/api/users/recent-rooms`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ email: session.user.email, roomId })
-                    }).catch(err => console.error("Failed to record recent room", err));
+                    const res = await fetch(`${apiUrl}/api/users/profile?email=${encodeURIComponent(session.user.email)}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.name) finalName = data.name;
+                        if (data.image) finalImage = data.image;
+                    }
+                } catch (err) {
+                    console.error("Failed to load profile on join, using defaults:", err);
                 }
             }
-        });
 
-        // Socket Listeners
-        newSocket.on("room-users", (usersInRoom) => {
-            const formattedUsers = usersInRoom.map((u: { socketId: string, user: { name: string, image: string, isMuted: boolean, isVideoOn: boolean } }) => ({
-                id: u.socketId,
-                ...u.user
-            }));
-            setUsers(formattedUsers);
-        });
+            setProfileName(finalName);
+            setProfileImage(finalImage);
 
-        newSocket.on("user-joined", ({ socketId, user }) => {
-            addUser({ id: socketId, ...user });
-            toast({ title: `${user.name || "Someone"} joined`, description: "A new participant entered the room." });
-        });
-
-        newSocket.on("user-left", ({ socketId }) => {
-            const leftUser = useRoomStore.getState().users.find(u => u.id === socketId);
-            removeUser(socketId);
-            if (leftUser) {
-                toast({ title: `${leftUser.name} left`, description: "They have left the room." });
-            }
-        });
-
-        newSocket.on("chat-message", (message) => {
-            addMessage(message);
-        });
-
-        // Room name changes
-        newSocket.on("room-name-changed", ({ name }: { name: string }) => {
-            setRoomName(name);
-        });
-
-        // Video Queue sync
-        newSocket.on("queue-updated", ({ queue }: { queue: string[] }) => {
-            setVideoQueue(queue);
-        });
-
-        // Collaborative Polls & Q&A
-        newSocket.on("polls-updated", ({ polls }) => {
-            setPolls(polls);
-        });
-
-        newSocket.on("qa-updated", ({ questions }) => {
-            setQuestions(questions);
-        });
-
-        newSocket.on("new-poll", ({ poll }) => {
-            toast({
-                title: "🗳️ New Poll Launched!",
-                description: `"${poll.question}" is now active.`,
-                action: (
-                    <ToastAction altText="Vote Now" onClick={() => setShowSidebar("polls")}>
-                        Vote Now
-                    </ToastAction>
-                ),
+            const newSocket = io(SOCKET_URL, {
+                withCredentials: true,
+                reconnection: true,
+                reconnectionAttempts: Infinity,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
             });
-        });
+            activeSocket = newSocket;
+            setSocket(newSocket);
 
-        // Host Controls
-        newSocket.on("force-mute", () => {
-            setIsMuted(true);
-            if (localStreamRef.current) {
-                localStreamRef.current.getAudioTracks().forEach(track => track.enabled = false);
-            }
-            newSocket.emit("toggle-mic", { roomId, userId: newSocket.id, isMuted: true });
-        });
+            newSocket.on("connect", () => {
+                if (newSocket.id) {
+                    setSocketId(newSocket.id);
+                    newSocket.emit("join-room", {
+                        roomId,
+                        user: {
+                            name: finalName,
+                            image: finalImage,
+                            isMuted: true,
+                            isVideoOn: false,
+                        }
+                    });
 
-        newSocket.on("hand-toggled", ({ userId, isHandRaised }: { userId: string, isHandRaised: boolean }) => {
-            updateUser(userId, { isHandRaised });
-        });
-
-        newSocket.on("hands-lowered", () => {
-            setIsHandRaised(false);
-            useRoomStore.getState().users.forEach(u => updateUser(u.id, { isHandRaised: false }));
-        });
-
-        // Auto-reconnect — re-join room after socket reconnects
-        newSocket.on("disconnect", () => {
-            // Socket disconnects are normal during tab switches;
-            // the "Connection Lost" overlay is driven by navigator.onLine
-            // (see the useEffect below), NOT by socket events.
-        });
-
-        newSocket.on("reconnect", () => {
-            // Re-join room after reconnect
-            if (newSocket.id) {
-                newSocket.emit("join-room", {
-                    roomId,
-                    user: {
-                        name: session?.user?.name || "Guest",
-                        image: session?.user?.image || "",
-                        isMuted: isMutedRef.current,
-                        isVideoOn: isVideoOnRef.current,
+                    // Record recent room in backend
+                    if (session.user?.email) {
+                        const apiUrl = process.env.NEXT_PUBLIC_SOCKET_URL?.replace(/\/$/, '') || "http://localhost:4000";
+                        fetch(`${apiUrl}/api/users/recent-rooms`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ email: session.user.email, roomId })
+                        }).catch(err => console.error("Failed to record recent room", err));
                     }
-                });
-            }
-        });
-
-        // Sync remote users' camera and mic state changes
-        newSocket.on("user-toggled-camera", ({ userId, isVideoOn }: { userId: string; isVideoOn: boolean }) => {
-            updateUser(userId, { isVideoOn });
-        });
-
-        newSocket.on("user-toggled-mic", ({ userId, isMuted }: { userId: string; isMuted: boolean }) => {
-            updateUser(userId, { isMuted });
-        });
-
-        newSocket.on("kicked", () => {
-            alert("You have been kicked from the room by the owner.");
-            router.push("/dashboard");
-        });
-
-        newSocket.on("force-mute", () => {
-            setIsMuted(true);
-            if (localStream) {
-                localStream.getAudioTracks().forEach(track => track.enabled = false);
-            }
-            if (newSocket.id) updateUser(newSocket.id, { isMuted: true });
-            toast({
-                title: "Force Muted",
-                description: "The room owner has muted your microphone.",
-                variant: "destructive",
+                }
             });
-        });
 
-        newSocket.on("owner-status-update", ({ socketId, isOwner, isPrimaryOwner }: { socketId: string, isOwner: boolean, isPrimaryOwner: boolean }) => {
-            updateUser(socketId, { isOwner, isPrimaryOwner });
-            if (socketId === newSocket.id) {
+            // Socket Listeners
+            newSocket.on("room-users", (usersInRoom) => {
+                const formattedUsers = usersInRoom.map((u: { socketId: string, user: { name: string, image: string, isMuted: boolean, isVideoOn: boolean } }) => ({
+                    id: u.socketId,
+                    ...u.user
+                }));
+                setUsers(formattedUsers);
+            });
+
+            newSocket.on("user-joined", ({ socketId, user }) => {
+                addUser({ id: socketId, ...user });
+                toast({ title: `${user.name || "Someone"} joined`, description: "A new participant entered the room." });
+            });
+
+            newSocket.on("user-left", ({ socketId }) => {
+                const leftUser = useRoomStore.getState().users.find(u => u.id === socketId);
+                removeUser(socketId);
+                if (leftUser) {
+                    toast({ title: `${leftUser.name} left`, description: "They have left the room." });
+                }
+            });
+
+            newSocket.on("chat-message", (message) => {
+                addMessage(message);
+            });
+
+            // Room name changes
+            newSocket.on("room-name-changed", ({ name }: { name: string }) => {
+                setRoomName(name);
+            });
+
+            // Video Queue sync
+            newSocket.on("queue-updated", ({ queue }: { queue: string[] }) => {
+                setVideoQueue(queue);
+            });
+
+            // Collaborative Polls & Q&A
+            newSocket.on("polls-updated", ({ polls }) => {
+                setPolls(polls);
+            });
+
+            newSocket.on("qa-updated", ({ questions }) => {
+                setQuestions(questions);
+            });
+
+            newSocket.on("new-poll", ({ poll }) => {
                 toast({
-                    title: "Owner Access Granted",
-                    description: "You now have owner privileges in this room.",
+                    title: "🗳️ New Poll Launched!",
+                    description: `"${poll.question}" is now active.`,
+                    action: (
+                        <ToastAction altText="Vote Now" onClick={() => setShowSidebar("polls")}>
+                            Vote Now
+                        </ToastAction>
+                    ),
                 });
-            }
-        });
-
-        newSocket.on("owner-request", ({ socketId, userName }: { socketId: string, userName: string }) => {
-            toast({
-                title: "Owner Access Request",
-                description: `${userName} is requesting owner access.`,
-                action: (
-                    <ToastAction altText="Accept" onClick={() => newSocket.emit("accept-owner-request", { roomId, targetSocketId: socketId })}>
-                        Accept
-                    </ToastAction>
-                ),
             });
-        });
+
+            // Host Controls
+            newSocket.on("force-mute", () => {
+                setIsMuted(true);
+                if (localStreamRef.current) {
+                    localStreamRef.current.getAudioTracks().forEach(track => track.enabled = false);
+                }
+                newSocket.emit("toggle-mic", { roomId, userId: newSocket.id, isMuted: true });
+            });
+
+            newSocket.on("hand-toggled", ({ userId, isHandRaised }: { userId: string, isHandRaised: boolean }) => {
+                updateUser(userId, { isHandRaised });
+            });
+
+            newSocket.on("hands-lowered", () => {
+                setIsHandRaised(false);
+                useRoomStore.getState().users.forEach(u => updateUser(u.id, { isHandRaised: false }));
+            });
+
+            // Auto-reconnect — re-join room after socket reconnects
+            newSocket.on("disconnect", () => {
+                // Socket disconnects are normal during tab switches;
+                // the "Connection Lost" overlay is driven by navigator.onLine
+                // (see the useEffect below), NOT by socket events.
+            });
+
+            newSocket.on("reconnect", () => {
+                // Re-join room after reconnect
+                if (newSocket.id) {
+                    newSocket.emit("join-room", {
+                        roomId,
+                        user: {
+                            name: finalName,
+                            image: finalImage,
+                            isMuted: isMutedRef.current,
+                            isVideoOn: isVideoOnRef.current,
+                        }
+                    });
+                }
+            });
+
+            // Sync remote users' camera and mic state changes
+            newSocket.on("user-toggled-camera", ({ userId, isVideoOn }: { userId: string; isVideoOn: boolean }) => {
+                updateUser(userId, { isVideoOn });
+            });
+
+            newSocket.on("user-toggled-mic", ({ userId, isMuted }: { userId: string; isMuted: boolean }) => {
+                updateUser(userId, { isMuted });
+            });
+
+            // User dynamic profile updates inside the room
+            newSocket.on("user-profile-updated", ({ socketId, name, image }) => {
+                updateUser(socketId, { name, image });
+            });
+
+            newSocket.on("kicked", () => {
+                alert("You have been kicked from the room by the owner.");
+                router.push("/dashboard");
+            });
+
+            newSocket.on("force-mute", () => {
+                setIsMuted(true);
+                if (localStream) {
+                    localStream.getAudioTracks().forEach(track => track.enabled = false);
+                }
+                if (newSocket.id) updateUser(newSocket.id, { isMuted: true });
+                toast({
+                    title: "Force Muted",
+                    description: "The room owner has muted your microphone.",
+                    variant: "destructive",
+                });
+            });
+
+            newSocket.on("owner-status-update", ({ socketId, isOwner, isPrimaryOwner }: { socketId: string, isOwner: boolean, isPrimaryOwner: boolean }) => {
+                updateUser(socketId, { isOwner, isPrimaryOwner });
+                if (socketId === newSocket.id) {
+                    toast({
+                        title: "Owner Access Granted",
+                        description: "You now have owner privileges in this room.",
+                    });
+                }
+            });
+
+            newSocket.on("owner-request", ({ socketId, userName }: { socketId: string, userName: string }) => {
+                toast({
+                    title: "Owner Access Request",
+                    description: `${userName} is requesting owner access.`,
+                    action: (
+                        <ToastAction altText="Accept" onClick={() => newSocket.emit("accept-owner-request", { roomId, targetSocketId: socketId })}>
+                            Accept
+                        </ToastAction>
+                    ),
+                });
+            });
+        };
+
+        connectAndJoin();
 
         return () => {
-            newSocket.disconnect();
+            if (activeSocket) {
+                activeSocket.disconnect();
+            }
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roomId, session, status, router]);
@@ -363,6 +402,17 @@ export default function RoomPage() {
         });
     }, [socket, roomId]);
 
+    const handleProfileUpdated = useCallback((newName: string, newImage: string) => {
+        setProfileName(newName);
+        setProfileImage(newImage);
+        
+        // Synchronize changes across the socket room
+        if (socket && socketId) {
+            updateUser(socketId, { name: newName, image: newImage });
+            socket.emit("update-profile", { roomId, name: newName, image: newImage });
+        }
+    }, [socket, socketId, roomId, updateUser]);
+
     const handleScreenShare = useCallback(async () => {
         const targetState = !isScreenSharing;
         const result = await toggleScreenShare(targetState, () => {
@@ -427,7 +477,7 @@ export default function RoomPage() {
         setTimeout(() => setCopiedLink(false), 2000);
     }, [roomId]);
 
-    if (status === "loading" || !socket) {
+    if (status === "loading" || status === "unauthenticated" || !socket) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-[#070709] text-white gap-4 noise">
                 <div className="relative w-12 h-12">
@@ -490,6 +540,16 @@ export default function RoomPage() {
                             <span className="hidden sm:inline text-xs">Up Next</span>
                         </Button>
                         {isOwner && <HostControls socket={socket} roomId={roomId as string} />}
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-9 px-3 gap-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800/50 transition-all"
+                            onClick={() => setShowProfileModal(true)}
+                            title="Profile Settings"
+                        >
+                            <User size={16} />
+                            <span className="hidden sm:inline text-xs">Profile</span>
+                        </Button>
                         <Button
                             variant="ghost"
                             size="sm"
@@ -761,6 +821,16 @@ export default function RoomPage() {
                 </div>
             )}
             
+            {/* Profile Settings Modal */}
+            <ProfileModal 
+                open={showProfileModal}
+                onOpenChange={setShowProfileModal}
+                email={session?.user?.email || ""}
+                defaultName={profileName || session?.user?.name || ""}
+                defaultImage={profileImage || session?.user?.image || ""}
+                onProfileUpdated={handleProfileUpdated}
+            />
+
             {/* Settings Modal */}
             <SettingsModal open={showSettingsModal} onOpenChange={setShowSettingsModal} />
         </div>

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { motion } from "framer-motion";
+import ProfileModal from "@/components/ProfileModal";
 
 export default function Dashboard() {
     const { data: session, status } = useSession();
@@ -24,11 +25,37 @@ export default function Dashboard() {
     // User manual room join code state
     const [joinRoomCode, setJoinRoomCode] = useState("");
 
+    // Custom Profile details synced from DB
+    const [showProfileModal, setShowProfileModal] = useState(false);
+    const [profileName, setProfileName] = useState("");
+    const [profileImage, setProfileImage] = useState("");
+
     useEffect(() => {
         if (status === "unauthenticated") {
             router.push("/");
         }
     }, [status, router]);
+
+    // Fetch custom profile details from DB
+    useEffect(() => {
+        if (status === "authenticated" && session?.user?.email) {
+            const apiUrl = process.env.NEXT_PUBLIC_SOCKET_URL?.replace(/\/$/, '') || "http://localhost:4000";
+            fetch(`${apiUrl}/api/users/profile?email=${encodeURIComponent(session.user.email)}`)
+                .then(res => {
+                    if (res.ok) return res.json();
+                    throw new Error("Profile not initialized yet");
+                })
+                .then(data => {
+                    if (data.name) setProfileName(data.name);
+                    if (data.image) setProfileImage(data.image);
+                })
+                .catch(err => {
+                    console.log("Using session defaults:", err);
+                    setProfileName(session.user?.name || "");
+                    setProfileImage(session.user?.image || "");
+                });
+        }
+    }, [status, session]);
 
     // Fetch recent rooms
     useEffect(() => {
@@ -110,15 +137,19 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 shadow-inner">
-                        <Avatar className="h-6 w-6 border border-zinc-800">
-                            <AvatarImage src={session.user?.image || ""} />
+                    <div 
+                        onClick={() => setShowProfileModal(true)}
+                        className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 shadow-inner hover:bg-zinc-850 hover:border-indigo-500/30 transition-all cursor-pointer group"
+                        title="Edit Profile Settings"
+                    >
+                        <Avatar className="h-6 w-6 border border-zinc-850 group-hover:border-indigo-500/40 transition-colors">
+                            <AvatarImage src={profileImage || ""} />
                             <AvatarFallback className="text-[10px] font-black bg-zinc-800 text-zinc-300">
-                                {session.user?.name?.[0]}
+                                {profileName?.[0]?.toUpperCase()}
                             </AvatarFallback>
                         </Avatar>
-                        <span className="text-xs text-zinc-300 font-bold hidden sm:block">
-                            {session.user?.name?.split(" ")[0]}
+                        <span className="text-xs text-zinc-300 font-bold hidden sm:block group-hover:text-indigo-400 transition-colors">
+                            {profileName?.split(" ")[0]}
                         </span>
                     </div>
                     <Button
@@ -150,7 +181,7 @@ export default function Dashboard() {
                         <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white mt-2">
                             Welcome back,{" "}
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
-                                {session.user?.name || "Guest User"}
+                                {profileName || "Guest User"}
                             </span>
                         </h1>
                     </div>
@@ -334,6 +365,18 @@ export default function Dashboard() {
                     )}
                 </div>
             </main>
+
+            <ProfileModal 
+                open={showProfileModal}
+                onOpenChange={setShowProfileModal}
+                email={session.user?.email || ""}
+                defaultName={session.user?.name || ""}
+                defaultImage={session.user?.image || ""}
+                onProfileUpdated={(newName, newImage) => {
+                    setProfileName(newName);
+                    setProfileImage(newImage);
+                }}
+            />
         </div>
     );
 }

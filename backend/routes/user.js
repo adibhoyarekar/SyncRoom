@@ -15,9 +15,10 @@ router.post('/sync', async (req, res) => {
         let user = await User.findOne({ email });
         
         if (user) {
-            // Update existing user with latest info from Google
-            user.name = name || user.name;
-            user.image = image || user.image;
+            // Do NOT overwrite user's manual edits if they already exist in database!
+            // We only apply defaults if they are currently blank.
+            if (!user.name) user.name = name;
+            if (!user.image) user.image = image;
             await user.save();
         } else {
             // Create new user
@@ -28,6 +29,64 @@ router.post('/sync', async (req, res) => {
         res.status(200).json(user);
     } catch (error) {
         console.error('Error syncing user:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Fetch user profile (overrides static provider details)
+router.get('/profile', async (req, res) => {
+    const { email } = req.query;
+    
+    if (!email) {
+        return res.status(400).json({ error: 'Email is required' });
+    }
+
+    try {
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        res.status(200).json({
+            name: user.name,
+            email: user.email,
+            image: user.image
+        });
+    } catch (error) {
+        console.error('Error retrieving user profile:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Update user profile details (Custom name, Base64 photo upload, etc.)
+router.post('/profile/update', async (req, res) => {
+    const { email, name, image } = req.body;
+    
+    if (!email) {
+        return res.status(400).json({ error: 'Email is required' });
+    }
+
+    try {
+        let user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        if (name) user.name = name;
+        if (image !== undefined) user.image = image; // allows resetting to empty or custom image url/base64
+        
+        await user.save();
+        
+        res.status(200).json({
+            message: 'Profile updated successfully',
+            user: {
+                name: user.name,
+                email: user.email,
+                image: user.image
+            }
+        });
+    } catch (error) {
+        console.error('Error updating user profile:', error);
         res.status(500).json({ error: 'Server error' });
     }
 });
