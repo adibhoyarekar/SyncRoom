@@ -6,7 +6,7 @@ import { useSession, signOut } from "next-auth/react";
 import { io, Socket } from "socket.io-client";
 import { useRoomStore } from "@/store/useRoomStore";
 import { Button } from "@/components/ui/button";
-import { LogOut, Mic, MicOff, Video, VideoOff, MonitorUp, Users as UsersIcon, MessageSquare, Copy, Check, Play, Share2, Link2, WifiOff, Settings, Hand, Vote, ListVideo, User } from "lucide-react";
+import { LogOut, Mic, MicOff, Video, VideoOff, MonitorUp, Users as UsersIcon, MessageSquare, Copy, Check, Play, Share2, Link2, WifiOff, Settings, Hand, Vote, ListVideo } from "lucide-react";
 import EmojiReactions from "@/components/EmojiReactions";
 import {
     Dialog,
@@ -28,7 +28,6 @@ import SettingsModal from "@/components/SettingsModal";
 import HostControls from "@/components/HostControls";
 import PollsPanel from "@/components/PollsPanel";
 import QueuePanel from "@/components/QueuePanel";
-import ProfileModal from "@/components/ProfileModal";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000";
 
@@ -95,11 +94,6 @@ export default function RoomPage() {
         }
     }, [socketId, updateUser]);
 
-    // Custom profile state inside the room
-    const [showProfileModal, setShowProfileModal] = useState(false);
-    const [profileName, setProfileName] = useState("");
-    const [profileImage, setProfileImage] = useState("");
-
     useEffect(() => {
         if (status === "unauthenticated") {
             router.push("/");
@@ -111,25 +105,8 @@ export default function RoomPage() {
         let activeSocket: Socket | null = null;
 
         const connectAndJoin = async () => {
-            let finalName = session.user?.name || "Guest";
-            let finalImage = session.user?.image || "";
-
-            if (session.user?.email) {
-                try {
-                    const apiUrl = process.env.NEXT_PUBLIC_SOCKET_URL?.replace(/\/$/, '') || "http://localhost:4000";
-                    const res = await fetch(`${apiUrl}/api/users/profile?email=${encodeURIComponent(session.user.email)}`);
-                    if (res.ok) {
-                        const data = await res.json();
-                        if (data.name) finalName = data.name;
-                        if (data.image) finalImage = data.image;
-                    }
-                } catch (err) {
-                    console.error("Failed to load profile on join, using defaults:", err);
-                }
-            }
-
-            setProfileName(finalName);
-            setProfileImage(finalImage);
+            const finalName = session.user?.name || "Guest";
+            const finalImage = session.user?.image || "";
 
             const newSocket = io(SOCKET_URL, {
                 withCredentials: true,
@@ -402,16 +379,7 @@ export default function RoomPage() {
         });
     }, [socket, roomId]);
 
-    const handleProfileUpdated = useCallback((newName: string, newImage: string) => {
-        setProfileName(newName);
-        setProfileImage(newImage);
-        
-        // Synchronize changes across the socket room
-        if (socket && socketId) {
-            updateUser(socketId, { name: newName, image: newImage });
-            socket.emit("update-profile", { roomId, name: newName, image: newImage });
-        }
-    }, [socket, socketId, roomId, updateUser]);
+
 
     const handleScreenShare = useCallback(async () => {
         const targetState = !isScreenSharing;
@@ -540,16 +508,6 @@ export default function RoomPage() {
                             <span className="hidden sm:inline text-xs">Up Next</span>
                         </Button>
                         {isOwner && <HostControls socket={socket} roomId={roomId as string} />}
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-9 px-3 gap-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800/50 transition-all"
-                            onClick={() => setShowProfileModal(true)}
-                            title="Profile Settings"
-                        >
-                            <User size={16} />
-                            <span className="hidden sm:inline text-xs">Profile</span>
-                        </Button>
                         <Button
                             variant="ghost"
                             size="sm"
@@ -832,15 +790,7 @@ export default function RoomPage() {
                 </div>
             )}
             
-            {/* Profile Settings Modal */}
-            <ProfileModal 
-                open={showProfileModal}
-                onOpenChange={setShowProfileModal}
-                email={session?.user?.email || ""}
-                defaultName={profileName || session?.user?.name || ""}
-                defaultImage={profileImage || session?.user?.image || ""}
-                onProfileUpdated={handleProfileUpdated}
-            />
+
 
             {/* Settings Modal */}
             <SettingsModal open={showSettingsModal} onOpenChange={setShowSettingsModal} />
