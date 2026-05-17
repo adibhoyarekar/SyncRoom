@@ -1,6 +1,8 @@
 export default function initSocket(io) {
     const rooms = new Map(); // roomId -> Set of { socketId, user }
     const roomQueues = new Map(); // roomId -> Array of video URLs
+    const roomPolls = new Map(); // roomId -> Array of polls
+    const roomQA = new Map(); // roomId -> Array of questions
 
     io.on('connection', (socket) => {
         console.log('User connected:', socket.id);
@@ -35,6 +37,10 @@ export default function initSocket(io) {
 
             // Send current queue
             socket.emit('queue-updated', { queue: roomQueues.get(roomId) || [] });
+
+            // Send current polls and Q&A
+            socket.emit('polls-updated', { polls: roomPolls.get(roomId) || [] });
+            socket.emit('qa-updated', { questions: roomQA.get(roomId) || [] });
         });
 
         // Helper to check ownership
@@ -291,6 +297,97 @@ export default function initSocket(io) {
             socket.to(to).emit('webrtc-ice-candidate', { candidate, from: socket.id });
         });
 
+        // ── Collaborative Polls Sockets ────────────────────────────────────
+        socket.on('create-poll', ({ roomId, poll }) => {
+            if (!roomPolls.has(roomId)) {
+                roomPolls.set(roomId, []);
+            }
+            const polls = roomPolls.get(roomId);
+            polls.push(poll);
+            io.to(roomId).emit('polls-updated', { polls });
+            io.to(roomId).emit('new-poll', { poll });
+        });
+
+        socket.on('vote-poll', ({ roomId, pollId, optionIndex, userId }) => {
+            const polls = roomPolls.get(roomId);
+            if (!polls) return;
+            const poll = polls.find(p => p.id === pollId);
+            if (!poll || !poll.isOpen) return;
+
+            // Remove user's vote from any other option (single vote rule)
+            Object.keys(poll.votes).forEach(optIdx => {
+                poll.votes[optIdx] = poll.votes[optIdx].filter(uid => uid !== userId);
+            });
+
+            // Add user's vote to selected option
+            if (!poll.votes[optionIndex]) {
+                poll.votes[optionIndex] = [];
+            }
+            poll.votes[optionIndex].push(userId);
+
+            io.to(roomId).emit('polls-updated', { polls });
+        });
+
+        socket.on('close-poll', ({ roomId, pollId }) => {
+            const polls = roomPolls.get(roomId);
+            if (!polls) return;
+            const poll = polls.find(p => p.id === pollId);
+            if (poll) {
+                poll.isOpen = false;
+                io.to(roomId).emit('polls-updated', { polls });
+            }
+        });
+
+        socket.on('delete-poll', ({ roomId, pollId }) => {
+            let polls = roomPolls.get(roomId);
+            if (!polls) return;
+            polls = polls.filter(p => p.id !== pollId);
+            roomPolls.set(roomId, polls);
+            io.to(roomId).emit('polls-updated', { polls });
+        });
+
+        // ── Interactive Q&A Sockets ───────────────────────────────────────
+        socket.on('submit-question', ({ roomId, question }) => {
+            if (!roomQA.has(roomId)) {
+                roomQA.set(roomId, []);
+            }
+            const questions = roomQA.get(roomId);
+            questions.push(question);
+            io.to(roomId).emit('qa-updated', { questions });
+        });
+
+        socket.on('upvote-question', ({ roomId, questionId, userId }) => {
+            const questions = roomQA.get(roomId);
+            if (!questions) return;
+            const question = questions.find(q => q.id === questionId);
+            if (question) {
+                if (question.upvotes.includes(userId)) {
+                    question.upvotes = question.upvotes.filter(uid => uid !== userId);
+                } else {
+                    question.upvotes.push(userId);
+                }
+                io.to(roomId).emit('qa-updated', { questions });
+            }
+        });
+
+        socket.on('answer-question', ({ roomId, questionId, answer }) => {
+            const questions = roomQA.get(roomId);
+            if (!questions) return;
+            const question = questions.find(q => q.id === questionId);
+            if (question) {
+                question.answers.push(answer);
+                io.to(roomId).emit('qa-updated', { questions });
+            }
+        });
+
+        socket.on('delete-question', ({ roomId, questionId }) => {
+            let questions = roomQA.get(roomId);
+            if (!questions) return;
+            questions = questions.filter(q => q.id !== questionId);
+            roomQA.set(roomId, questions);
+            io.to(roomId).emit('qa-updated', { questions });
+        });
+
         // Disconnect
         socket.on('disconnect', () => {
             console.log('User disconnected:', socket.id);
@@ -306,6 +403,8 @@ export default function initSocket(io) {
                     if (roomUsers.size === 0) {
                         rooms.delete(roomId);
                         roomQueues.delete(roomId);
+                        roomPolls.delete(roomId);
+                        roomQA.delete(roomId);
                     } else if (wasPrimaryOwner) {
                         // If primary owner leaves, pass it to someone else (first available)
                         const nextPrimaryId = Array.from(roomUsers.keys())[0];

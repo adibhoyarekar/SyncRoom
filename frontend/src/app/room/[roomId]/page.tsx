@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { io, Socket } from "socket.io-client";
 import { useRoomStore } from "@/store/useRoomStore";
 import { Button } from "@/components/ui/button";
-import { LogOut, Mic, MicOff, Video, VideoOff, MonitorUp, Users as UsersIcon, MessageSquare, Copy, Check, Play, Share2, Link2, WifiOff, Settings, Hand } from "lucide-react";
+import { LogOut, Mic, MicOff, Video, VideoOff, MonitorUp, Users as UsersIcon, MessageSquare, Copy, Check, Play, Share2, Link2, WifiOff, Settings, Hand, Vote } from "lucide-react";
 import EmojiReactions from "@/components/EmojiReactions";
 import {
     Dialog,
@@ -26,6 +26,7 @@ import RoomTour from "@/components/RoomTour";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import SettingsModal from "@/components/SettingsModal";
 import HostControls from "@/components/HostControls";
+import PollsPanel from "@/components/PollsPanel";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000";
 
@@ -52,9 +53,9 @@ export default function RoomPage() {
     const [isDisconnected, setIsDisconnected] = useState(false);
 
     // UI Toggles
-    const [showSidebar, setShowSidebar] = useState<"chat" | "participants" | null>("chat");
+    const [showSidebar, setShowSidebar] = useState<"chat" | "participants" | "polls" | null>("chat");
 
-    const { users, setUsers, addUser, removeUser, addMessage, updateUser, setVideoQueue } = useRoomStore();
+    const { users, setUsers, addUser, removeUser, addMessage, updateUser, setVideoQueue, setPolls, setQuestions } = useRoomStore();
     const { shortcuts } = useSettingsStore();
 
     const isOwner = users.find(u => u.id === socket?.id)?.isOwner ?? false;
@@ -168,6 +169,27 @@ export default function RoomPage() {
         // Video Queue sync
         newSocket.on("queue-updated", ({ queue }: { queue: string[] }) => {
             setVideoQueue(queue);
+        });
+
+        // Collaborative Polls & Q&A
+        newSocket.on("polls-updated", ({ polls }) => {
+            setPolls(polls);
+        });
+
+        newSocket.on("qa-updated", ({ questions }) => {
+            setQuestions(questions);
+        });
+
+        newSocket.on("new-poll", ({ poll }) => {
+            toast({
+                title: "🗳️ New Poll Launched!",
+                description: `"${poll.question}" is now active.`,
+                action: (
+                    <ToastAction altText="Vote Now" onClick={() => setShowSidebar("polls")}>
+                        Vote Now
+                    </ToastAction>
+                ),
+            });
         });
 
         // Host Controls
@@ -441,6 +463,15 @@ export default function RoomPage() {
                             <MessageSquare size={16} />
                             <span className="hidden sm:inline text-xs">Chat</span>
                         </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`h-9 px-3 gap-1.5 rounded-lg transition-all ${showSidebar === "polls" ? "bg-indigo-500/10 text-indigo-400" : "text-zinc-400 hover:text-white hover:bg-zinc-800/50"}`}
+                            onClick={() => setShowSidebar(showSidebar === "polls" ? null : "polls")}
+                        >
+                            <Vote size={16} />
+                            <span className="hidden sm:inline text-xs">Polls & Q&A</span>
+                        </Button>
                         {isOwner && <HostControls socket={socket} roomId={roomId as string} />}
                         <Button
                             variant="ghost"
@@ -603,8 +634,10 @@ export default function RoomPage() {
                     <aside className="w-[340px] border-l border-zinc-800/40 flex flex-col shrink-0 z-10 tour-sidebar">
                         {showSidebar === "chat" ? (
                             <ChatPanel socket={socket} roomId={roomId as string} />
-                        ) : (
+                        ) : showSidebar === "participants" ? (
                             <ParticipantsPanel socket={socket} roomId={roomId as string} />
+                        ) : (
+                            <PollsPanel socket={socket} roomId={roomId as string} />
                         )}
                     </aside>
                 )}

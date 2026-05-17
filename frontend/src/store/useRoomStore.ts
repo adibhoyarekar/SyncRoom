@@ -21,6 +21,34 @@ interface Message {
     timestamp: string;
 }
 
+export interface Poll {
+    id: string;
+    question: string;
+    options: string[];
+    votes: { [optionIndex: number]: string[] }; // optionIndex -> array of userIds
+    creatorName: string;
+    creatorId: string;
+    isOpen: boolean;
+}
+
+export interface Answer {
+    id: string;
+    text: string;
+    creatorName: string;
+    creatorId: string;
+    timestamp: string;
+}
+
+export interface Question {
+    id: string;
+    text: string;
+    creatorName: string;
+    creatorId: string;
+    timestamp: string;
+    upvotes: string[]; // array of userIds
+    answers: Answer[];
+}
+
 interface RoomState {
     users: User[];
     messages: Message[];
@@ -31,6 +59,10 @@ interface RoomState {
     addMessage: (message: Message) => void;
     videoQueue: string[];
     setVideoQueue: (queue: string[]) => void;
+    polls: Poll[];
+    setPolls: (polls: Poll[]) => void;
+    questions: Question[];
+    setQuestions: (questions: Question[]) => void;
 }
 
 export const useRoomStore = create<RoomState>((set) => ({
@@ -45,4 +77,8 @@ export const useRoomStore = create<RoomState>((set) => ({
     addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
     videoQueue: [],
     setVideoQueue: (queue) => set({ videoQueue: queue }),
+    polls: [],
+    setPolls: (polls) => set({ polls }),
+    questions: [],
+    setQuestions: (questions) => set({ questions }),
 }));
