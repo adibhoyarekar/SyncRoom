@@ -55,6 +55,7 @@ export default function RoomPage() {
 
     // UI Toggles
     const [showSidebar, setShowSidebar] = useState<"chat" | "participants" | "polls" | "queue" | null>("chat");
+    const [queueTab, setQueueTab] = useState<"link" | "search">("link");
 
     const { users, setUsers, addUser, removeUser, addMessage, updateUser, setVideoQueue, setPolls, setQuestions } = useRoomStore();
     const { shortcuts } = useSettingsStore();
@@ -656,7 +657,9 @@ export default function RoomPage() {
 
                 {/* ── Sidebar ────────────────────────────────────────── */}
                 {showSidebar && (
-                    <aside className="w-[340px] border-l border-zinc-800/40 flex flex-col shrink-0 z-10 tour-sidebar">
+                    <aside className={`border-l border-zinc-800/40 flex flex-col shrink-0 z-10 tour-sidebar transition-all duration-300 ease-out ${
+                        showSidebar === "queue" && queueTab === "search" ? "w-[560px]" : "w-[340px]"
+                    }`}>
                         {showSidebar === "chat" ? (
                             <ChatPanel socket={socket} roomId={roomId as string} />
                         ) : showSidebar === "participants" ? (
@@ -664,7 +667,12 @@ export default function RoomPage() {
                         ) : showSidebar === "polls" ? (
                             <PollsPanel socket={socket} roomId={roomId as string} />
                         ) : (
-                            <QueuePanel socket={socket} roomId={roomId as string} onClose={() => setShowSidebar(null)} />
+                            <QueuePanel 
+                                socket={socket} 
+                                roomId={roomId as string} 
+                                onClose={() => setShowSidebar(null)} 
+                                onActiveTabChange={setQueueTab}
+                            />
                         )}
                     </aside>
                 )}
