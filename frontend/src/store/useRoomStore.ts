@@ -49,6 +49,13 @@ export interface Question {
     answers: Answer[];
 }
 
+export interface VideoInfo {
+    url: string;
+    title: string;
+    thumbnail: string;
+    addedBy?: string;
+}
+
 interface RoomState {
     users: User[];
     messages: Message[];
@@ -57,8 +64,8 @@ interface RoomState {
     removeUser: (socketId: string) => void;
     updateUser: (socketId: string, updates: Partial<User>) => void;
     addMessage: (message: Message) => void;
-    videoQueue: any[];
-    setVideoQueue: (queue: any[]) => void;
+    videoQueue: (string | VideoInfo)[];
+    setVideoQueue: (queue: (string | VideoInfo)[]) => void;
     polls: Poll[];
     setPolls: (polls: Poll[]) => void;
     questions: Question[];
